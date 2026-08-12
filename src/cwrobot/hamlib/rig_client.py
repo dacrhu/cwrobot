@@ -59,9 +59,19 @@ _ERROR_MESSAGES: dict[int, str] = {
     7: "Internal Hamlib error",
     8: "Protocol error communicating with the rig",
     9: "Rig rejected the command",
+    10: "Command performed, but the response was truncated",
     11: "This rig model/backend doesn't support this function",
+    12: "VFO not targetable on this rig",
+    13: "Error talking on the CAT bus",
+    14: "Collision on the CAT bus -- another command was in flight at the "
+    "same time (e.g. the frequency poll and a TX send overlapped)",
+    15: "Invalid internal parameter",
     16: "Invalid VFO",
+    17: "Parameter out of range",
+    18: "Function deprecated in this Hamlib version",
+    19: "Security error",
     20: "Rig is not powered on",
+    21: "Limit exceeded",
     22: "Port already in use",
 }
 

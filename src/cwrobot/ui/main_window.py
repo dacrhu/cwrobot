@@ -7,7 +7,7 @@ minimal menu bar and a status bar for connection/error state.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
@@ -124,13 +124,30 @@ class MainWindow(QMainWindow):
         # this needs its own thread at all (blocking Hamlib I/O on the GUI
         # thread -- e.g. retrying against a powered-off rig -- was freezing
         # the whole window).
+        #
+        # _freq_monitor_pause specifically has to be a *blocking* queued
+        # connection, not the default fire-and-forget queued one: a plain
+        # emit() only ever posts the pause() call onto the worker thread's
+        # event queue and returns immediately, with no guarantee it actually
+        # ran -- if a poll happened to be in flight (or about to start) right
+        # as Send was clicked, _build_hamlib_tx_backend would open its own
+        # connection to the same port while the monitor's was still live,
+        # producing exactly the two-handles-on-one-port corruption this is
+        # meant to prevent (seen in the wild as Hamlib error -14,
+        # RIG_BUSBUSY "collision on the bus", failing rig_send_morse).
+        # BlockingQueuedConnection makes emit() itself wait for pause()'s
+        # _close_rig() to actually finish on the worker thread before
+        # _build_hamlib_tx_backend is allowed to proceed to its own open() --
+        # a short, bounded stall (at most one poll's worth of CAT I/O) on
+        # Send, not the unbounded once-a-second GUI freeze the dedicated
+        # thread was originally introduced to fix.
         self._freq_monitor = FrequencyMonitor()
         self._freq_monitor_thread = QThread(self)
         self._freq_monitor.moveToThread(self._freq_monitor_thread)
         self._freq_monitor_thread.started.connect(self._freq_monitor.run)
         self._freq_monitor.frequency_changed.connect(self.qso_panel.set_frequency_hz)
         self._freq_monitor_set_target.connect(self._freq_monitor.set_target)
-        self._freq_monitor_pause.connect(self._freq_monitor.pause)
+        self._freq_monitor_pause.connect(self._freq_monitor.pause, Qt.ConnectionType.BlockingQueuedConnection)
         self._freq_monitor_resume.connect(self._freq_monitor.resume)
         self._freq_monitor_stop.connect(self._freq_monitor.stop)
         self._freq_monitor_thread.start()
@@ -215,7 +232,7 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self,
             "About",
-            "CW Robot - v1.0.3\n\nDeveloped by HG7WHD\n\nhttps://github.com/dacrhu/cwrobot",
+            "CW Robot - v1.0.4\n\nDeveloped by HG7WHD\n\nhttps://github.com/dacrhu/cwrobot",
         )
 
     # -- Audio pipeline (capture -> ring buffer -> CwDecoder -> waterfall) --
@@ -427,7 +444,9 @@ class MainWindow(QMainWindow):
 
         # Free the port first -- see the frequency-monitor setup comment in
         # __init__ for why this and the TX connection below must never both
-        # be open at once. _stop_tx_pipeline resumes it once this send's own
+        # be open at once, and why this specific emit() actually blocks
+        # until the monitor's connection is closed rather than just posting
+        # the request. _stop_tx_pipeline resumes it once this send's own
         # connection is closed.
         self._freq_monitor_pause.emit()
 
