@@ -1,0 +1,42 @@
+#!/bin/bash
+# AppImage entry point for CW Robot.
+#
+# Runs *inside* the mounted AppDir at launch time (the AppImage runtime sets
+# $APPDIR before calling this; the readlink fallback below covers running it
+# directly out of an extracted AppDir during development/debugging, where
+# $APPDIR isn't set). Two things need pointing at the bundled copies instead
+# of whatever (if anything) the host system happens to have:
+#
+#   - libhamlib.so* (see build_appimage.sh, which copies it plus its own
+#     transitive .so deps into usr/lib/) -- cwrobot.hamlib.ctypes_bindings
+#     loads it via a bare-soname ctypes.CDLL() call, i.e. a plain dlopen(),
+#     which already honors LD_LIBRARY_PATH with no code changes needed.
+#   - PySide6's bundled Qt platform plugins (libqxcb.so and friends) --
+#     without QT_QPA_PLATFORM_PLUGIN_PATH pointing at them explicitly, Qt
+#     falls back to searching (and likely failing against) a host Qt
+#     install, if any.
+#
+# The exact path to PySide6's Qt/plugins directory depends on the bundled
+# interpreter's version (e.g. usr/lib/python3.11/site-packages/...), so it's
+# located with `find` here rather than hardcoded.
+
+set -euo pipefail
+
+HERE="$(dirname "$(readlink -f "${0}")")"
+export APPDIR="${APPDIR:-${HERE}}"
+
+export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${LD_LIBRARY_PATH:-}"
+
+pyside_qt_dir="$(find "${APPDIR}/usr" -maxdepth 6 -type d -path '*/PySide6/Qt/plugins' -print -quit || true)"
+if [ -n "${pyside_qt_dir}" ]; then
+    export QT_PLUGIN_PATH="${pyside_qt_dir}"
+    export QT_QPA_PLATFORM_PLUGIN_PATH="${pyside_qt_dir}/platforms"
+fi
+
+python_bin="$(find "${APPDIR}/usr/bin" -maxdepth 1 -type f -name 'python3*' -print -quit || true)"
+if [ -z "${python_bin}" ]; then
+    echo "AppRun: no bundled python3* interpreter found under ${APPDIR}/usr/bin" >&2
+    exit 1
+fi
+
+exec "${python_bin}" -m cwrobot.app "$@"

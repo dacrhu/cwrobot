@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CW Robot app icon: a flat, stylized straight CW key (pivot base + lever +
+  knob) on a rounded-square dark badge, with a short dot-dash mark echoing
+  Morse code. Colors reused from src/cwrobot/ui/style.py's own palette
+  (_TX_ACCENT "Carrot" for the key, the "bye" macro group's dark
+  "Midnight Blue" for the background) so the icon reads as part of the same
+  app, not a bolted-on placeholder.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="badge-clip">
+      <rect x="0" y="0" width="256" height="256" rx="48" ry="48" />
+    </clipPath>
+  </defs>
+
+  <!-- Background badge -->
+  <rect x="0" y="0" width="256" height="256" rx="48" ry="48" fill="#2c3e50" />
+
+  <g clip-path="url(#badge-clip)">
+    <!-- Subtle bottom-left glow, echoes the app's own waterfall/accent colors -->
+    <circle cx="40" cy="230" r="140" fill="#3498db" opacity="0.10" />
+  </g>
+
+  <!-- Straight key base plate -->
+  <rect x="56" y="168" width="144" height="24" rx="10" fill="#e67e22" />
+
+  <!-- Pivot post -->
+  <rect x="70" y="146" width="20" height="30" rx="6" fill="#e67e22" />
+
+  <!-- Key lever, angled up toward the knob -->
+  <g transform="rotate(-18 80 160)">
+    <rect x="76" y="118" width="20" height="80" rx="10" fill="#e67e22" />
+  </g>
+
+  <!-- Knob -->
+  <circle cx="150" cy="92" r="26" fill="#e67e22" />
+  <circle cx="150" cy="92" r="10" fill="#2c3e50" opacity="0.35" />
+
+  <!-- Morse "dot dash" mark, lower right -->
+  <circle cx="176" cy="204" r="8" fill="#ecf0f1" />
+  <rect x="196" y="196" width="34" height="16" rx="8" fill="#ecf0f1" />
+</svg>

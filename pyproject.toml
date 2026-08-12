@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cwrobot"
+version = "0.1.0"
+description = "CW Robot -- CW (Morse) transceiver desktop application"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "PySide6",
+    "numpy",
+    "scipy",
+    "sounddevice",
+    "pyserial",
+]
+
+[project.scripts]
+cwrobot = "cwrobot.app:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cwrobot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

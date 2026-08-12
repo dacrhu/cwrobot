@@ -1,0 +1,54 @@
+name: Build AppImage
+
+# Builds the self-contained Linux AppImage (see packaging/build_appimage.sh
+# and README.md) and attaches it to the GitHub Release for the pushed tag.
+# workflow_dispatch is there too, for a manual "does the build still work"
+# check without having to cut a real release tag.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to upload the built AppImage as a release asset
+
+jobs:
+  build-appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Hamlib (bundled into the AppImage) and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhamlib4 libhamlib-dev curl
+
+      - name: Install appimagetool
+        # GitHub Actions runners have no FUSE, so appimagetool (itself
+        # shipped as an AppImage) is run via its extracted AppRun instead
+        # of executed directly -- the standard CI workaround for this.
+        run: |
+          curl -fL -o /tmp/appimagetool.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool.AppImage
+          ( cd /tmp && ./appimagetool.AppImage --appimage-extract >/dev/null )
+          sudo ln -s /tmp/squashfs-root/AppRun /usr/local/bin/appimagetool
+
+      - name: Build the AppImage
+        run: ./packaging/build_appimage.sh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CW_Robot-x86_64.AppImage
+          path: dist/CW_Robot-x86_64.AppImage
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
+            || gh release create "${GITHUB_REF_NAME}" --generate-notes
+          gh release upload "${GITHUB_REF_NAME}" dist/CW_Robot-x86_64.AppImage --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

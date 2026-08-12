@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.claude/
+
+# AppImage build output (see packaging/build_appimage.sh)
+*.AppImage
+packaging/build/
+packaging/.cache/
