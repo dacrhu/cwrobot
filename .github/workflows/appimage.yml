@@ -24,10 +24,35 @@ jobs:
           # the previous tag and this one.
           fetch-depth: 0
 
-      - name: Install Hamlib (bundled into the AppImage) and build tools
+      - name: Build Hamlib (bundled into the AppImage) from source
+        # Deliberately NOT `apt-get install libhamlib4` -- Ubuntu 24.04
+        # ("noble", what ubuntu-latest currently is) ships Hamlib 4.5.5,
+        # which is old enough to have real behavioral differences from
+        # current Hamlib in rig_send_morse's CW-keyer path: confirmed in
+        # the wild that a rig sending fine via a Fedora 43 (Hamlib 4.6.5)
+        # system install of this same app hit persistent RIG_BUSBUSY
+        # ("collision on the bus") failures on every send when using an
+        # AppImage built against 4.5.5 instead -- not a timing race
+        # (rig_client's own retry budget didn't help), a genuine
+        # difference between those two Hamlib builds. Building the same
+        # 4.6.5 release from source here keeps the bundled Hamlib in sync
+        # with what's actually known to work, independent of whatever a
+        # given Ubuntu LTS happens to package.
+        env:
+          HAMLIB_VERSION: "4.6.5"
         run: |
           sudo apt-get update
-          sudo apt-get install -y libhamlib4 libhamlib-dev curl
+          sudo apt-get install -y build-essential libusb-1.0-0-dev pkg-config curl
+
+          curl -fL -o /tmp/hamlib.tar.gz \
+            "https://github.com/Hamlib/Hamlib/releases/download/${HAMLIB_VERSION}/hamlib-${HAMLIB_VERSION}.tar.gz"
+          mkdir -p /tmp/hamlib-src
+          tar -xzf /tmp/hamlib.tar.gz -C /tmp/hamlib-src --strip-components=1
+
+          ( cd /tmp/hamlib-src && ./configure --prefix=/usr/local --disable-static )
+          make -C /tmp/hamlib-src -j"$(nproc)"
+          sudo make -C /tmp/hamlib-src install
+          sudo ldconfig
 
       - name: Install appimagetool
         # GitHub Actions runners have no FUSE, so appimagetool (itself
