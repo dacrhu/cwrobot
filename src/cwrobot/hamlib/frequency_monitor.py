@@ -49,7 +49,14 @@ POLL_INTERVAL_MS = 1000
 # the bus") if that internal teardown hasn't caught up yet -- even though,
 # from our own Python/Qt side, the two connections are already correctly
 # serialized (see main_window's BlockingQueuedConnection pause/resume).
-_PORT_SETTLE_S = 0.2
+# Confirmed against a real rig/AppImage build that 0.2s alone wasn't
+# enough -- the very first command or two issued right after the *new*
+# handle's own rig_open() could still trip RIG_BUSBUSY, well past this
+# delay. rig_client's own retry budget (see _retry_on_bus_collision) is
+# what actually absorbs that startup race now; this settle delay just
+# gives the old handle's teardown a head start so retry doesn't have to
+# do all the work.
+_PORT_SETTLE_S = 0.3
 
 
 class FrequencyMonitor(QObject):

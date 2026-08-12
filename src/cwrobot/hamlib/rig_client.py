@@ -88,12 +88,20 @@ def _error_message(code: int) -> str:
 # poll/TX send are already serialized against each other (see main_window's
 # BlockingQueuedConnection pause/resume handoff), but a collision can still
 # happen against a rig's own periodic status chatter (e.g. Icom CI-V
-# Transceive broadcasts) or a second CAT client on the same port/bus --
-# retrying immediately after a brief pause is the standard mitigation for
-# exactly this class of error, and is a no-op (single attempt, same result)
-# for any other error code.
-_BUS_COLLISION_RETRY_ATTEMPTS = 3
-_BUS_COLLISION_RETRY_DELAY_S = 0.15
+# Transceive broadcasts), a second CAT client on the same port/bus, or --
+# confirmed against a real rig/AppImage build, no other CAT client and no
+# Transceive-style chatter involved -- Hamlib's own async serial engine
+# (backends built on the newer async I/O path) simply not being fully
+# spun up yet the instant a command follows straight after rig_open(): the
+# first one or two commands on a just-opened handle can trip RIG_BUSBUSY
+# even though nothing else touched the bus, and it can take noticeably
+# longer than a couple hundred ms for that internal handler to settle,
+# especially on slower USB-serial adapters. Retrying with a real budget for
+# that startup race (not just a quick single retry) is the standard
+# mitigation, and is a no-op (single attempt, same result) for any other
+# error code.
+_BUS_COLLISION_RETRY_ATTEMPTS = 12
+_BUS_COLLISION_RETRY_DELAY_S = 0.25
 
 
 def _retry_on_bus_collision(call) -> int:
@@ -238,7 +246,9 @@ class HamlibRig:
         # otherwise. Since this app exists to send CW, switching the rig
         # into CW mode on connect is the expected behavior here (the same
         # thing e.g. fldigi/CQRLOG do), not a surprising side effect.
-        ret = lib.rig_set_mode(self._handle, RIG_VFO_CURR, RIG_MODE_CW, RIG_PASSBAND_NORMAL)
+        ret = _retry_on_bus_collision(
+            lambda: lib.rig_set_mode(self._handle, RIG_VFO_CURR, RIG_MODE_CW, RIG_PASSBAND_NORMAL)
+        )
         if ret != RIG_OK:
             # Non-fatal: some backends/rigs don't support rig_set_mode over
             # CAT for the current VFO, or are already in CW -- log and let
@@ -270,7 +280,9 @@ class HamlibRig:
     def set_keyer_speed(self, wpm: float) -> None:
         assert self._handle is not None
         lib = get_library()
-        ret = lib.rig_set_level(self._handle, RIG_VFO_CURR, RIG_LEVEL_KEYSPD, ValueT(i=round(wpm)))
+        ret = _retry_on_bus_collision(
+            lambda: lib.rig_set_level(self._handle, RIG_VFO_CURR, RIG_LEVEL_KEYSPD, ValueT(i=round(wpm)))
+        )
         if ret != RIG_OK:
             raise HamlibError("Could not set the TX speed on the rig", ret)
 
