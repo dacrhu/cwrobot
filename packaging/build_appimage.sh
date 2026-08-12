@@ -173,7 +173,24 @@ install -m 0644 "${REPO_ROOT}/assets/icon-256.png" "${APPDIR}/usr/share/icons/hi
 # ---------------------------------------------------------------------------
 
 OUTPUT_FILE="${DIST_DIR}/CW_Robot-x86_64.AppImage"
+
+# appimagetool downloads this "runtime" blob (the small stub that turns the
+# squashfs into a self-mounting executable) itself if it's not told
+# otherwise -- with no retry, so a single transient GitHub hiccup (seen in
+# CI: a bare 503) fails the whole build. Fetching it ourselves with retries
+# and handing it over via --runtime-file is more reliable, and doubles as a
+# cache across local runs same as the python-appimage download above.
+RUNTIME_FILE="${CACHE_DIR}/runtime-x86_64"
+if [ ! -f "${RUNTIME_FILE}" ]; then
+    log "Downloading the AppImage runtime stub..."
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors --progress-bar \
+        -o "${RUNTIME_FILE}" \
+        https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+else
+    log "Using cached AppImage runtime stub"
+fi
+
 log "Running appimagetool..."
-ARCH=x86_64 appimagetool "${APPDIR}" "${OUTPUT_FILE}"
+ARCH=x86_64 appimagetool --runtime-file "${RUNTIME_FILE}" "${APPDIR}" "${OUTPUT_FILE}"
 
 log "Done: ${OUTPUT_FILE}"
