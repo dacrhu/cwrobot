@@ -7,7 +7,7 @@ name: Build AppImage
 on:
   push:
     tags:
-      - "v*"
+      - "*" # tags in this repo are bare semver (e.g. "1.0.1"), no "v" prefix
   workflow_dispatch:
 
 permissions:
@@ -45,7 +45,7 @@ jobs:
           path: dist/CW_Robot-x86_64.AppImage
 
       - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
             || gh release create "${GITHUB_REF_NAME}" --generate-notes
