@@ -141,12 +141,35 @@ else
     # baseline libs every AppImage is expected to get from the host glibc
     # (see the AppImage packaging guidelines) -- bundling those causes more
     # compatibility problems than it solves.
-    BASELINE_LIB_PATTERN='^(linux-vdso|ld-linux|libc\.so|libm\.so|libpthread\.so|libdl\.so|librt\.so|libresolv\.so)'
-    ldd "${REAL_HAMLIB_SO}" | awk '{print $(NF-1), $3}' | while read -r libname libpath; do
-        [ -n "${libpath}" ] && [ -f "${libpath}" ] || continue
-        echo "${libname}" | grep -Eq "${BASELINE_LIB_PATTERN}" && continue
-        cp -Ln "${libpath}" "${APPDIR}/usr/lib/$(basename "${libpath}")" 2>/dev/null || true
-    done
+    # NOTE on a bug that shipped here previously: `ldd` lines come in two
+    # shapes -- "name => /resolved/path (0xaddr)" (4 fields) and, for the
+    # dynamic linker/vDSO itself, "/resolved/path (0xaddr)" (2 fields, no
+    # "=>"). `awk '{print $(NF-1), $3}'` collapsed both into the *path*
+    # twice for the common 4-field case (NF-1 == 3), so `libname` held a
+    # full path like "/lib64/libc.so.6" instead of the bare soname -- which
+    # then never matched BASELINE_LIB_PATTERN's `^libc\.so` anchor, so
+    # libc/libpthread/ld-linux/etc. all slipped through and got bundled.
+    # Bundling glibc's own libc.so.6 is actively harmful, not just
+    # redundant: AppRun's LD_LIBRARY_PATH makes every subsequently-run
+    # program in the AppImage (including `find`, which AppRun itself uses
+    # to locate the interpreter) load *that* copy instead of the host's --
+    # and a libc.so.6 built on a different distro/version than the host's
+    # own dynamic linker fails with exactly the "undefined symbol ...
+    # GLIBC_PRIVATE" crash this comment is here to prevent a repeat of.
+    BASELINE_LIB_PATTERN='^(linux-vdso|ld-linux|libc\.so|libm\.so|libpthread\.so|libdl\.so|librt\.so|libresolv\.so|libnsl\.so|libutil\.so|libcrypt\.so)'
+    # Resolve to a path either way (the "=> target" form for ordinary
+    # dependencies, or the bare "path (addr)" form ld-linux/vdso's own line
+    # uses), then classify by *basename* of that path -- matching
+    # BASELINE_LIB_PATTERN against anything other than the bare filename
+    # (a full "/lib64/..." path, in particular) silently never matches.
+    ldd "${REAL_HAMLIB_SO}" \
+        | awk '{ path = ($2 == "=>") ? $3 : $1; print path }' \
+        | while read -r libpath; do
+            [ -n "${libpath}" ] && [ -f "${libpath}" ] || continue
+            libname="$(basename "${libpath}")"
+            echo "${libname}" | grep -Eq "${BASELINE_LIB_PATTERN}" && continue
+            cp -Ln "${libpath}" "${APPDIR}/usr/lib/${libname}" 2>/dev/null || true
+        done
 fi
 
 # ---------------------------------------------------------------------------

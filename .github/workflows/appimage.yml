@@ -18,6 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + tags, not actions/checkout's default shallow
+          # clone -- the release-notes step below needs `git log` between
+          # the previous tag and this one.
+          fetch-depth: 0
 
       - name: Install Hamlib (bundled into the AppImage) and build tools
         run: |
@@ -46,9 +51,36 @@ jobs:
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
+        # GitHub's own --generate-notes is built around merged pull
+        # requests (grouped by label, plus a "Full Changelog" diff link);
+        # this repo is committed to directly instead, so that would come
+        # out nearly empty. Building the notes from the commit log between
+        # the previous tag and this one instead gives actual content
+        # either way. `create` for a release that doesn't exist yet (the
+        # common case: the tag push itself is what creates it), `edit` for
+        # one that already does (e.g. created by hand on GitHub first).
         run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
-            || gh release create "${GITHUB_REF_NAME}" --generate-notes
+          PREV_TAG="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+
+          {
+            echo "## What's changed"
+            echo
+            if [ -n "${PREV_TAG}" ]; then
+              git log --oneline --no-decorate "${PREV_TAG}..${GITHUB_REF_NAME}"
+            else
+              git log --oneline --no-decorate "${GITHUB_REF_NAME}"
+            fi | sed 's/^/- /'
+            if [ -n "${PREV_TAG}" ]; then
+              echo
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${GITHUB_REF_NAME}"
+            fi
+          } > /tmp/release-notes.md
+
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release edit "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
+          else
+            gh release create "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
+          fi
           gh release upload "${GITHUB_REF_NAME}" dist/CW_Robot-x86_64.AppImage --clobber
         env:
           GH_TOKEN: ${{ github.token }}
