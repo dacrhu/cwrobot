@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import time
 from dataclasses import dataclass
 
 import serial
 
 from cwrobot.hamlib.ctypes_bindings import (
+    RIG_BUSBUSY,
     RIG_CAPS_MFG_NAME_CPTR,
     RIG_CAPS_MODEL_NAME_CPTR,
     RIG_EIO,
@@ -78,6 +80,30 @@ _ERROR_MESSAGES: dict[int, str] = {
 
 def _error_message(code: int) -> str:
     return _ERROR_MESSAGES.get(-code, f"Hamlib error ({code})")
+
+
+# RIG_BUSBUSY ("collision on the bus") is transient by nature -- it means
+# some *other* command happened to be in flight on the CAT bus at the exact
+# same instant, not that anything is actually broken. Our own frequency
+# poll/TX send are already serialized against each other (see main_window's
+# BlockingQueuedConnection pause/resume handoff), but a collision can still
+# happen against a rig's own periodic status chatter (e.g. Icom CI-V
+# Transceive broadcasts) or a second CAT client on the same port/bus --
+# retrying immediately after a brief pause is the standard mitigation for
+# exactly this class of error, and is a no-op (single attempt, same result)
+# for any other error code.
+_BUS_COLLISION_RETRY_ATTEMPTS = 3
+_BUS_COLLISION_RETRY_DELAY_S = 0.15
+
+
+def _retry_on_bus_collision(call) -> int:
+    ret = call()
+    attempts = 1
+    while ret == -RIG_BUSBUSY and attempts < _BUS_COLLISION_RETRY_ATTEMPTS:
+        time.sleep(_BUS_COLLISION_RETRY_DELAY_S)
+        ret = call()
+        attempts += 1
+    return ret
 
 
 def _diagnose_port_open_failure(port_path: str) -> str | None:
@@ -255,7 +281,9 @@ class HamlibRig:
         completion/Stop is tracked."""
         assert self._handle is not None
         lib = get_library()
-        ret = lib.rig_send_morse(self._handle, RIG_VFO_CURR, text.encode("utf-8"))
+        ret = _retry_on_bus_collision(
+            lambda: lib.rig_send_morse(self._handle, RIG_VFO_CURR, text.encode("utf-8"))
+        )
         if ret != RIG_OK:
             raise HamlibError("Could not send the text to the rig's CW keyer", ret)
 
@@ -301,7 +329,9 @@ class HamlibRig:
         assert self._handle is not None
         lib = get_library()
         freq = ctypes.c_double()
-        ret = lib.rig_get_freq(self._handle, RIG_VFO_CURR, ctypes.byref(freq))
+        ret = _retry_on_bus_collision(
+            lambda: lib.rig_get_freq(self._handle, RIG_VFO_CURR, ctypes.byref(freq))
+        )
         if ret != RIG_OK:
             raise HamlibError("Could not read the frequency from the rig", ret)
         return freq.value

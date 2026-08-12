@@ -30,12 +30,26 @@ it doesn't touch the GUI thread at all, which is the actual goal.
 
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from cwrobot.hamlib.ctypes_bindings import HamlibUnavailableError
 from cwrobot.hamlib.rig_client import HamlibError, HamlibRig
 
 POLL_INTERVAL_MS = 1000
+
+# Extra settle time after closing our rig handle, before the caller (see
+# pause()) is allowed to proceed to open a *new* one on the same port.
+# rig_close() returning doesn't necessarily mean Hamlib's own internal
+# state for that port has fully quiesced -- newer Hamlib versions run
+# morse sending through an internal async handler thread (per-rig
+# "morse_busy" state in Hamlib's own src/rig.c), and a rapid close-then-
+# reopen cycle on the same port can still trip RIG_BUSBUSY ("collision on
+# the bus") if that internal teardown hasn't caught up yet -- even though,
+# from our own Python/Qt side, the two connections are already correctly
+# serialized (see main_window's BlockingQueuedConnection pause/resume).
+_PORT_SETTLE_S = 0.2
 
 
 class FrequencyMonitor(QObject):
@@ -69,9 +83,17 @@ class FrequencyMonitor(QObject):
     def pause(self) -> None:
         """Called right before a TX send opens its own Hamlib connection --
         see main_window's own comment on why the two must never be open on
-        the port at once."""
+        the port at once. Runs via a BlockingQueuedConnection, so the
+        caller (on the GUI thread) doesn't proceed to its own open() until
+        this -- including the settle delay below -- has actually finished."""
         self._paused = True
+        had_rig = self._rig is not None
         self._close_rig()
+        if had_rig:
+            # Only worth the wait if there was an actual connection to
+            # settle from -- a pause() with nothing open yet (e.g. the
+            # very first send of the session) has nothing to wait out.
+            time.sleep(_PORT_SETTLE_S)
 
     def resume(self) -> None:
         self._paused = False

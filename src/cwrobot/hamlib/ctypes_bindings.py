@@ -50,6 +50,7 @@ RIG_OK = 0
 # public, stable ABI -- these are #define's/enum ordinals, not struct
 # offsets, so they don't share the fragility struct layouts would have). --
 RIG_EIO = 6  # enum rig_errcode_e: "IO error, including open failed"
+RIG_BUSBUSY = 14  # enum rig_errcode_e: "Collision on the bus" -- transient, worth retrying
 RIG_MODEL_DUMMY = 1  # RIG_MAKE_MODEL(RIG_DUMMY=0, 1)
 RIG_VFO_CURR = 1 << 29  # RIG_VFO_N(29)
 RIG_PTT_OFF = 0
