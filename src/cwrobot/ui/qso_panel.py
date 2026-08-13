@@ -16,9 +16,24 @@ The time fields are the exception to "plain editable": Start auto-captures
 "now" the moment the callsign field goes from empty to filled, and End is a
 read-only field that continuously ticks to the current time -- so whenever
 the operator is done and (eventually) logs the QSO, it already reads the
-right end time without any manual entry. Frequency is a *conditional*
-exception -- MainWindow drives it read-only, ticking once a second from a
-live Hamlib CAT connection, exactly when one is configured and available;
+right end time without any manual entry. Both are UTC, not local time --
+ADIF's QSO_DATE/TIME_ON/TIME_OFF fields are defined as UTC (see
+models.adif), and main_window passes these fields' values straight through
+with no timezone conversion of its own, so capturing anything but UTC here
+would silently log the wrong time for every operator not sitting in UTC+0.
+See _tick_end_time/_on_callsign_text_changed/clear_all below -- all three
+use QDateTime.currentDateTimeUtc(), never plain currentDateTime(). That
+alone isn't sufficient, though: QDateTimeEdit.setDateTime() silently
+re-expresses whatever QDateTime it's given in the *widget's own* time
+zone for internal storage and display -- defaulting to local time -- so
+without also calling setTimeZone(QTimeZone.UTC) on both widgets below
+right after construction, a UTC value going in would still silently come
+back out (via .dateTime(), and so .toPython()) as the equivalent local
+wall-clock time instead.
+
+Frequency is a *conditional* exception -- MainWindow drives it read-only,
+ticking once a second from a live Hamlib CAT connection, exactly when one
+is configured and available;
 see set_frequency_editable/set_frequency_hz. It's kept separate from
 `self.fields`/QSO_FIELDS entirely since it's neither a selection-popup
 routing destination (ui.selection_popup) nor part of the macro variable
@@ -27,7 +42,7 @@ catalog (cwrobot.macros) that those fields feed.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QDateTime, QTimer
+from PySide6.QtCore import QDateTime, QTimer, QTimeZone
 from PySide6.QtWidgets import QDateTimeEdit, QGridLayout, QGroupBox, QLabel, QLineEdit, QPushButton, QWidget
 
 from cwrobot.ui.qso_fields import QSO_FIELDS
@@ -88,15 +103,19 @@ class QsoPanel(QGroupBox):
         layout.addWidget(self.frequency_edit, 1, freq_column)
 
         time_column = freq_column + 1
-        layout.addWidget(QLabel("Start:", self), 0, time_column)
+        layout.addWidget(QLabel("Start (UTC):", self), 0, time_column)
         self.start_time_edit = QDateTimeEdit(self)
         self.start_time_edit.setDisplayFormat(_DATETIME_DISPLAY_FORMAT)
         self.start_time_edit.setCalendarPopup(True)
+        # See the module docstring above -- without this, values set via
+        # currentDateTimeUtc() would silently come back as local time.
+        self.start_time_edit.setTimeZone(QTimeZone.UTC)
         layout.addWidget(self.start_time_edit, 1, time_column)
 
-        layout.addWidget(QLabel("End:", self), 0, time_column + 1)
+        layout.addWidget(QLabel("End (UTC):", self), 0, time_column + 1)
         self.end_time_edit = QDateTimeEdit(self)
         self.end_time_edit.setDisplayFormat(_DATETIME_DISPLAY_FORMAT)
+        self.end_time_edit.setTimeZone(QTimeZone.UTC)
         # Read-only: this field is a continuously-ticking "now" clock (see
         # _tick_end_time below), not something the operator fills in --
         # letting it be edited would just have every keystroke overwritten
@@ -119,12 +138,12 @@ class QsoPanel(QGroupBox):
         self._tick_end_time()
 
     def _tick_end_time(self) -> None:
-        self.end_time_edit.setDateTime(QDateTime.currentDateTime())
+        self.end_time_edit.setDateTime(QDateTime.currentDateTimeUtc())
 
     def _on_callsign_text_changed(self, text: str) -> None:
         if text.strip():
             if not self._start_time_captured:
-                self.start_time_edit.setDateTime(QDateTime.currentDateTime())
+                self.start_time_edit.setDateTime(QDateTime.currentDateTimeUtc())
                 self._start_time_captured = True
         else:
             # Cleared back to empty -- ready to capture a fresh start time
@@ -214,4 +233,4 @@ class QsoPanel(QGroupBox):
         self.set_callsign_error(False)
         self.set_frequency_error(False)
         self._start_time_captured = False
-        self.start_time_edit.setDateTime(QDateTime.currentDateTime())
+        self.start_time_edit.setDateTime(QDateTime.currentDateTimeUtc())

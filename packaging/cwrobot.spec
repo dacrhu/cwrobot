@@ -97,7 +97,7 @@ if sys.platform == "darwin":
             # cwrobot.ui.main_window (the project's actual release-version
             # convention -- git tags/pyproject.toml's own version field
             # lag behind it) -- bump this alongside that string.
-            "CFBundleShortVersionString": "1.0.11",
+            "CFBundleShortVersionString": "1.0.12",
             "NSHighResolutionCapable": True,
             # sounddevice/PortAudio opens the microphone; without this key
             # macOS's TCC privacy prompt never appears and the open just

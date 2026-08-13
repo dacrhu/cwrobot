@@ -25,7 +25,8 @@ contact in progress. Fill by typing, or via the RX selection popup above.
 Locator is always forced to upper case.
 
 - **Start** is captured automatically the moment Callsign is first filled
-  in; **End** keeps ticking to "now" until you log the QSO.
+  in; **End** keeps ticking to "now" until you log the QSO. Both are UTC
+  (per ADIF convention), not your local time zone.
 - **Frequency** — when Hamlib CAT is connected, the current VFO frequency
   is polled once a second and the field becomes read-only; otherwise type
   it in by hand.
