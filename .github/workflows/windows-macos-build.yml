@@ -198,10 +198,28 @@ jobs:
         # invalidates whatever signature they had, and the hardened-runtime
         # launcher refuses to dlopen an unsigned or inconsistently-signed
         # dylib -- so every dylib gets a fresh ad-hoc signature, then the
-        # whole bundle is re-signed with the entitlements that tell AMFI
-        # it's OK to load ad-hoc-signed children from the same bundle. See
-        # packaging/macos-entitlements.plist's comments for the failure
-        # mode this specifically works around.
+        # whole bundle is re-signed with packaging/macos-entitlements.plist,
+        # which tells AMFI it's OK to load ad-hoc-signed children from the
+        # same bundle. That plist is deliberately comment-free: AMFI's own
+        # entitlements XML parser (AMFIUnserializeXML) is stricter than
+        # normal XML tooling and rejected the very first version of it,
+        # which had a `--` inside an XML comment -- technically illegal XML
+        # either way (a comment body may not contain `--`), just something
+        # more permissive parsers (plutil, libxml2) silently tolerate.
+        # What each entitlement in that plist is for:
+        #   - com.apple.security.cs.disable-library-validation: the
+        #     load-bearing one. Without it, the hardened-runtime launcher
+        #     refuses to dlopen the ad-hoc-signed Hamlib dylib bundled
+        #     alongside it (team ID "-" doesn't match the launcher's own
+        #     signing identity, which is exactly what "library validation"
+        #     checks), failing with "code signature ... not valid for use
+        #     in process: library load disallowed by system policy". Safe
+        #     here specifically because every dylib in the bundle is signed
+        #     by this same build (also ad-hoc), not in general.
+        #   - com.apple.security.cs.allow-jit /
+        #     allow-unsigned-executable-memory: PySide6/Qt's QML and V8
+        #     engines JIT-compile at runtime; without these two the
+        #     hardened runtime blocks that outright.
         run: |
           BUNDLE="dist/CW Robot.app"
           find "$BUNDLE" -type f \( -name "*.dylib" -o -name "*.so" \) \
