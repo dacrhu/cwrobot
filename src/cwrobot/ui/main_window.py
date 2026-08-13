@@ -232,7 +232,7 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self,
             "About",
-            "CW Robot - v1.0.8\n\nDeveloped by HG7WHD\n\nhttps://github.com/dacrhu/cwrobot",
+            "CW Robot - v1.0.9\n\nDeveloped by HG7WHD\n\nhttps://github.com/dacrhu/cwrobot",
         )
 
     # -- Audio pipeline (capture -> ring buffer -> CwDecoder -> waterfall) --
