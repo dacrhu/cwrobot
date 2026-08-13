@@ -1,9 +1,10 @@
 #!/bin/bash
 # Builds a self-contained Linux AppImage for CW Robot: bundles a portable
 # CPython, the project's own pip dependencies (PySide6, numpy, scipy,
-# sounddevice, pyserial), and the system's libhamlib.so (+ its transitive
-# shared-library dependencies) -- so the resulting .AppImage runs without
-# any of this needing to be installed on the target machine.
+# sounddevice, pyserial), and the system's libhamlib.so and
+# libportaudio.so.2 (+ libhamlib's own transitive shared-library
+# dependencies) -- so the resulting .AppImage runs without any of this
+# needing to be installed on the target machine.
 #
 # Prerequisites on the BUILD machine (see README.md's "Installation
 # (Fedora)" section for the dnf install line):
@@ -11,17 +12,23 @@
 #     bundling; CAT keying is skipped with a warning, not a hard failure,
 #     if it's missing -- see cwrobot.hamlib.ctypes_bindings' own graceful
 #     HamlibUnavailableError fallback, which the AppImage build mirrors).
+#   - PortAudio installed (libportaudio.so.2 -- Debian/Ubuntu's
+#     `libportaudio2` package, Fedora's `portaudio`). Unlike Hamlib this
+#     one's NOT optional: sounddevice imports unconditionally at Python
+#     import time and raises on the spot if it can't find it, so a missing
+#     PortAudio is a hard startup crash, not a gracefully-disabled feature.
 #   - curl, python3 (stdlib json -- used to query the GitHub API instead
 #     of requiring jq), ldconfig, ldd, appimagetool
 #     (https://github.com/AppImageKit/AppImageKit/releases -- must be on
 #     PATH as `appimagetool`).
 #
-# Portability note: the bundled libhamlib.so is copied straight from this
-# build machine, so it's linked against *this machine's* glibc -- the
-# AppImage will run on similarly-recent-or-newer distros, but not
-# necessarily on very old ones. See README.md and the plan this was built
-# from for the (not yet implemented) option of cross-building Hamlib
-# inside an old manylinux-style container for maximum portability.
+# Portability note: the bundled libhamlib.so/libportaudio.so.2 are copied
+# straight from this build machine, so they're linked against *this
+# machine's* glibc -- the AppImage will run on similarly-recent-or-newer
+# distros, but not necessarily on very old ones. See README.md and the
+# plan this was built from for the (not yet implemented) option of
+# cross-building both inside an old manylinux-style container for maximum
+# portability.
 
 set -euo pipefail
 
@@ -170,6 +177,53 @@ else
             echo "${libname}" | grep -Eq "${BASELINE_LIB_PATTERN}" && continue
             cp -Ln "${libpath}" "${APPDIR}/usr/lib/${libname}" 2>/dev/null || true
         done
+fi
+
+# ---------------------------------------------------------------------------
+# 3b. Bundle libportaudio.so.2. NOT a graceful-degradation case like
+#     Hamlib above: sounddevice's Linux import path calls
+#     ctypes.util.find_library("portaudio") at Python import time and
+#     raises immediately with no fallback if that comes up empty -- a
+#     missing PortAudio is a hard startup crash, not a disabled feature.
+#
+#     It's also not as simple as copying the .so next to libhamlib.so and
+#     letting AppRun's LD_LIBRARY_PATH handle it: find_library() on Linux
+#     only consults the *system's* ldconfig cache (or gcc/ld, if present)
+#     -- unlike Hamlib's bare-soname ctypes.CDLL() call, it does NOT
+#     search LD_LIBRARY_PATH, so a bundled copy sitting in usr/lib is
+#     invisible to it no matter what AppRun sets. Instead, AppRun exports
+#     a CWROBOT_BUNDLED_PORTAUDIO env var pointing at this exact bundled
+#     file, and cwrobot.audio's __init__.py monkeypatches
+#     ctypes.util.find_library to fall back to that path when the normal
+#     lookup fails -- so the file just needs to exist at a fixed, known
+#     name here; unlike libhamlib.so's several candidate sonames, nothing
+#     needs to match what this build machine happens to call it.
+# ---------------------------------------------------------------------------
+
+# Same SIGPIPE/pipefail caveat as the ldconfig calls above.
+PORTAUDIO_SO="$(ldconfig -p | awk '/libportaudio\.so\.2/ {print $NF; exit}')" || true
+if [ -z "${PORTAUDIO_SO}" ]; then
+    log "WARNING: libportaudio.so.2 not found via ldconfig -- building WITHOUT"
+    log "         bundled PortAudio. Unlike Hamlib above, this is NOT a"
+    log "         graceful degradation: the AppImage will hard-crash at"
+    log "         startup on any machine that doesn't already have"
+    log "         libportaudio2 (or equivalent) installed system-wide."
+    log "         (install it -- e.g. 'apt install libportaudio2' or"
+    log "         'dnf install portaudio' -- and re-run this script.)"
+else
+    log "Bundling PortAudio from ${PORTAUDIO_SO}"
+    REAL_PORTAUDIO_SO="$(readlink -f "${PORTAUDIO_SO}")"
+    cp -L "${REAL_PORTAUDIO_SO}" "${APPDIR}/usr/lib/libportaudio.so.2"
+
+    # Deliberately NOT walking this one's own transitive deps the way the
+    # Hamlib block above does: its one real non-baseline dependency is
+    # libasound.so.2 (ALSA), and ALSA's own runtime plugin resolution
+    # (/usr/lib/*/alsa-lib/, /etc/alsa/, etc.) is extremely host-specific
+    # -- bundling a foreign libasound.so.2 risks breaking the *host's* own
+    # ALSA setup (including the PipeWire routing this app depends on via
+    # pactl, see README.md's "Audio handling" section) rather than fixing
+    # anything, and ALSA itself is about as universal on any Linux system
+    # that actually has audio hardware as glibc is.
 fi
 
 # ---------------------------------------------------------------------------

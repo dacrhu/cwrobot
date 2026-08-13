@@ -4,13 +4,19 @@
 # Runs *inside* the mounted AppDir at launch time (the AppImage runtime sets
 # $APPDIR before calling this; the readlink fallback below covers running it
 # directly out of an extracted AppDir during development/debugging, where
-# $APPDIR isn't set). Two things need pointing at the bundled copies instead
-# of whatever (if anything) the host system happens to have:
+# $APPDIR isn't set). Three things need pointing at the bundled copies
+# instead of whatever (if anything) the host system happens to have:
 #
 #   - libhamlib.so* (see build_appimage.sh, which copies it plus its own
 #     transitive .so deps into usr/lib/) -- cwrobot.hamlib.ctypes_bindings
 #     loads it via a bare-soname ctypes.CDLL() call, i.e. a plain dlopen(),
 #     which already honors LD_LIBRARY_PATH with no code changes needed.
+#   - libportaudio.so.2 (see build_appimage.sh's bundling step) -- unlike
+#     Hamlib, sounddevice finds it via ctypes.util.find_library(), which
+#     does NOT honor LD_LIBRARY_PATH on Linux, so a plain env var here
+#     isn't enough by itself; CWROBOT_BUNDLED_PORTAUDIO below is read by
+#     cwrobot.audio's own find_library() monkeypatch (see its __init__.py)
+#     as a fallback path when the normal lookup fails.
 #   - PySide6's bundled Qt platform plugins (libqxcb.so and friends) --
 #     without QT_QPA_PLATFORM_PLUGIN_PATH pointing at them explicitly, Qt
 #     falls back to searching (and likely failing against) a host Qt
@@ -26,6 +32,16 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 export APPDIR="${APPDIR:-${HERE}}"
 
 export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${LD_LIBRARY_PATH:-}"
+
+# Only set if build_appimage.sh actually managed to bundle it (it warns
+# and continues without one if the build machine had no PortAudio to copy
+# from) -- cwrobot.audio's find_library() monkeypatch checks this env var
+# itself and no-ops if it's unset or points at a file that isn't there, so
+# this being absent just falls back to today's behavior (require the host
+# to have it), not a hard failure here.
+if [ -f "${APPDIR}/usr/lib/libportaudio.so.2" ]; then
+    export CWROBOT_BUNDLED_PORTAUDIO="${APPDIR}/usr/lib/libportaudio.so.2"
+fi
 
 pyside_qt_dir="$(find "${APPDIR}/usr" -maxdepth 6 -type d -path '*/PySide6/Qt/plugins' -print -quit || true)"
 if [ -n "${pyside_qt_dir}" ]; then

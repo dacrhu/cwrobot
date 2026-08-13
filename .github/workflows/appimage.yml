@@ -85,6 +85,16 @@ jobs:
       - name: Build the AppImage
         run: ./packaging/build_appimage.sh
 
+      - name: Remove the runner's own PortAudio
+        # build_appimage.sh already bundled a copy of it into the AppImage
+        # (see that script's own comments for why sounddevice needs one
+        # explicitly bundled, unlike Hamlib). Purging the runner's system
+        # copy *before* the smoke test below means that step actually
+        # proves the bundled CWROBOT_BUNDLED_PORTAUDIO fallback works, not
+        # just that the AppImage happens to run fine on a runner that
+        # coincidentally also has libportaudio2 installed system-wide.
+        run: sudo apt-get remove -y libportaudio2
+
       - name: Smoke test
         # Actually runs the built AppImage headlessly and checks it starts
         # up and that the bundled Hamlib loads -- same check the
