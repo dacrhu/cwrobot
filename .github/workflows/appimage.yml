@@ -42,7 +42,15 @@ jobs:
           HAMLIB_VERSION: "4.6.5"
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libusb-1.0-0-dev pkg-config curl
+          # libegl1/libgl1/libxkbcommon0: not Hamlib's dependencies -- the
+          # bare ubuntu-latest runner has no graphics stack at all, and
+          # PySide6/Qt6 needs these three even to load under the
+          # "offscreen" platform plugin (see the smoke-test step below).
+          # Without them the AppImage's own bundled Python fails at
+          # `import PySide6.QtWidgets` with "libEGL.so.1: cannot open
+          # shared object file" before it ever gets to Hamlib.
+          sudo apt-get install -y build-essential libusb-1.0-0-dev pkg-config curl \
+            libegl1 libgl1 libxkbcommon0
 
           curl -fL -o /tmp/hamlib.tar.gz \
             "https://github.com/Hamlib/Hamlib/releases/download/${HAMLIB_VERSION}/hamlib-${HAMLIB_VERSION}.tar.gz"

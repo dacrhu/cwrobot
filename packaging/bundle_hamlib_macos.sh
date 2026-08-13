@@ -54,12 +54,26 @@ fi
 # Non-system dependencies of the main dylib (Homebrew-provided libs like
 # libusb) -- /usr/lib and /System paths are on every Mac already and
 # shouldn't be bundled.
-mapfile -t DEPS < <(
+# NOTE: not `mapfile`/`readarray` (bash >=4 builtins) -- GitHub Actions'
+# macOS runners execute `run:` steps with /bin/bash, which on macOS is
+# Apple's ancient, GPLv2-frozen bash 3.2, not a Homebrew-updated one. A
+# plain while-read loop into an array works the same on 3.2 and is what
+# every other script in this repo already uses (see build_appimage.sh).
+DEPS=()  # loops below use ${DEPS[@]+...} -- see comment at the first one
+while IFS= read -r dep; do
+    [ -n "${dep}" ] && DEPS+=("${dep}")
+done < <(
     otool -L "${MAIN_DYLIB}" | tail -n +2 | awk '{print $1}' \
         | grep -v '^/usr/lib/' | grep -v '^/System/' || true
 )
 
-for dep in "${DEPS[@]}"; do
+# ${DEPS[@]+"${DEPS[@]}"}, not a plain "${DEPS[@]}": under `set -u`, bash
+# before 4.4 (i.e. macOS's system /bin/bash 3.2, again) treats expanding an
+# *empty* array with "${arr[@]}" as an unset-variable error. This idiom
+# expands to nothing at all when DEPS is empty instead of erroring -- only
+# actually matters if Hamlib ever ships with zero non-system dependencies,
+# but costs nothing to guard against now.
+for dep in "${DEPS[@]+"${DEPS[@]}"}"; do
     [ -f "${dep}" ] || continue
     dep_name="$(basename "${dep}")"
     [ "${dep_name}" = "${MAIN_DYLIB_NAME}" ] && continue
@@ -75,7 +89,7 @@ done
 # Point the main dylib's own id, and its references to each bundled
 # dependency, at the copies sitting next to it.
 install_name_tool -id "@executable_path/${MAIN_DYLIB_NAME}" "${MACOS_DIR}/${MAIN_DYLIB_NAME}"
-for dep in "${DEPS[@]}"; do
+for dep in "${DEPS[@]+"${DEPS[@]}"}"; do
     dep_name="$(basename "${dep}")"
     [ -f "${MACOS_DIR}/${dep_name}" ] || continue
     install_name_tool -change "${dep}" "@executable_path/${dep_name}" "${MACOS_DIR}/${MAIN_DYLIB_NAME}"
