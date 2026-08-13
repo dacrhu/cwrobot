@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Entitlements for the ad-hoc re-codesign step in the macOS job of
+.github/workflows/windows-macos-build.yml.
+
+com.apple.security.cs.disable-library-validation is the load-bearing one:
+without it, the hardened-runtime launcher refuses to dlopen the
+ad-hoc-signed Hamlib dylib bundled alongside it (team ID "-" doesn't match
+the launcher's own signing identity, which is exactly what "library
+validation" checks) -- it fails at runtime with "code signature ... not
+valid for use in process: library load disallowed by system policy".
+Disabling that check is safe here specifically because every dylib in the
+bundle is signed by the same build (also ad-hoc), not because it's
+generally safe to disable.
+
+allow-jit / allow-unsigned-executable-memory: PySide6/Qt's QML and V8
+engines JIT-compile at runtime; without these two the hardened runtime
+blocks that outright.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+</dict>
+</plist>

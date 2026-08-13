@@ -68,6 +68,32 @@ jobs:
       - name: Build the AppImage
         run: ./packaging/build_appimage.sh
 
+      - name: Smoke test
+        # Actually runs the built AppImage headlessly and checks it starts
+        # up and that the bundled Hamlib loads -- same check the
+        # Windows/macOS jobs in windows-macos-build.yml run on their own
+        # packages (see cwrobot.app's --smoke-test handling), added here
+        # too for consistency: catches a broken bundle before it ships,
+        # instead of only finding out from a user report.
+        run: |
+          chmod +x dist/CW_Robot-x86_64.AppImage
+          export QT_QPA_PLATFORM=offscreen
+          set +e
+          # --appimage-extract-and-run: GitHub Actions runners have no
+          # FUSE, so the AppImage can't mount itself the normal way.
+          output="$(dist/CW_Robot-x86_64.AppImage --appimage-extract-and-run --smoke-test 2>&1)"
+          status=$?
+          set -e
+          echo "$output"
+          if [ "$status" -ne 0 ]; then
+            echo "ERROR: smoke test exited with status $status" >&2
+            exit 1
+          fi
+          echo "$output" | grep -q "Hamlib: loaded" || {
+            echo "ERROR: smoke test did not report 'Hamlib: loaded' -- bundled Hamlib failed to load" >&2
+            exit 1
+          }
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
