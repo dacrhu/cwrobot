@@ -1,0 +1,268 @@
+name: Build Windows & macOS
+
+# Builds Windows and macOS packages with PyInstaller and attaches them to
+# the same GitHub Release the Linux AppImage build (appimage.yml) uses.
+# Deliberately a SEPARATE workflow file: appimage.yml and its AppImage
+# build stay untouched (beyond one added smoke-test step there too) so
+# this can't regress the Linux build. See packaging/cwrobot.spec's
+# docstring and this file's own per-job comments for the platform-specific
+# details (PyInstaller packaging, bundling+re-signing Hamlib on macOS,
+# downloading the official Hamlib build on Windows).
+#
+# Both jobs create/attach to the release independently of appimage.yml's
+# own release step (same "view, then create-or-edit, then upload
+# --clobber" pattern) -- accepted small race risk if multiple of these
+# workflows fire on the exact same tag push at once: a `create` call can
+# lose the race and fail, but it's guarded with `|| true` and the
+# following `upload --clobber` still succeeds once the release exists.
+on:
+  push:
+    tags:
+      - "*" # bare semver tags (e.g. "1.0.1"), no "v" prefix -- matches appimage.yml
+  workflow_dispatch:
+
+env:
+  # Keep in sync with the HAMLIB_VERSION appimage.yml builds from source.
+  HAMLIB_VERSION: "4.6.5"
+  # sha256 of hamlib-w64-4.6.5.zip, pinned from Hamlib's own published
+  # SHA256SUM-w64-4.6.5 (and independently re-verified by hand against a
+  # fresh download when this was written). Bump deliberately alongside
+  # HAMLIB_VERSION and re-capture this from the new release's own
+  # SHA256SUM-w64-<version> file when you do.
+  HAMLIB_SHA256_W64: "2a7bfae280ec8aef1d42558b73eaef7f5f0d1dfa9fd8463c15adde5fdec63851"
+
+permissions:
+  contents: write # needed to upload build artifacts as release assets
+
+concurrency:
+  group: windows-macos-build-${{ github.ref }}
+  cancel-in-progress: false # never cancel a release mid-upload
+
+jobs:
+  build-windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history/tags for release-notes generation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project + build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller pyinstaller-hooks-contrib Pillow
+
+      - name: Download and verify Hamlib (official Windows build)
+        # Hamlib publishes a ready-made, official Windows binary release
+        # (hamlib-w64-<version>.zip) -- no need to compile it here like
+        # appimage.yml does for Linux. sha256-verified against the pinned
+        # value above before anything is extracted from it.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/Hamlib/Hamlib/releases/download/$env:HAMLIB_VERSION/hamlib-w64-$env:HAMLIB_VERSION.zip"
+          Invoke-WebRequest -Uri $url -OutFile hamlib.zip
+          $actual = (Get-FileHash hamlib.zip -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $env:HAMLIB_SHA256_W64) {
+            Write-Error "Hamlib zip sha256 mismatch: expected $env:HAMLIB_SHA256_W64, got $actual"
+            exit 1
+          }
+          Expand-Archive -Path hamlib.zip -DestinationPath hamlib_extracted
+
+      - name: Generate Windows icon
+        run: python packaging/make_ico.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller packaging/cwrobot.spec --noconfirm --clean
+
+      - name: Bundle Hamlib DLLs
+        # libhamlib-4.dll's own dependencies (from the same official zip),
+        # copied alongside it -- Windows' default DLL search order checks
+        # the loading module's own directory first, so no PATH/env changes
+        # are needed for these to be found once they're next to cwrobot.exe.
+        shell: pwsh
+        run: |
+          $hamlibBin = "hamlib_extracted/hamlib-w64-$env:HAMLIB_VERSION/bin"
+          $dlls = @("libhamlib-4.dll", "libgcc_s_seh-1.dll", "libwinpthread-1.dll", "libusb-1.0.dll")
+          foreach ($dll in $dlls) {
+            Copy-Item "$hamlibBin/$dll" "dist/cwrobot/$dll"
+          }
+
+      - name: Verify build
+        shell: pwsh
+        run: |
+          $exe = "dist/cwrobot/cwrobot.exe"
+          if (-not (Test-Path $exe)) { Write-Error "$exe not found"; exit 1 }
+          Write-Host "OK: $exe ($([math]::Round((Get-Item $exe).Length / 1MB, 1)) MB)"
+
+      - name: Smoke test
+        # Runs the actual packaged exe headlessly on the real Windows
+        # runner -- this is the real verification that the PyInstaller
+        # bundle (imports, Qt plugins, bundled Hamlib DLL) works at all,
+        # since nobody on this project has a Windows machine to test on by
+        # hand. See cwrobot.app's --smoke-test handling and
+        # _report_hamlib_status in particular.
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $output = & "dist/cwrobot/cwrobot.exe" --smoke-test 2>&1 | Out-String
+          Write-Host $output
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "smoke test exited with code $LASTEXITCODE"
+            exit 1
+          }
+          if ($output -notmatch "Hamlib: loaded") {
+            Write-Error "smoke test did not report 'Hamlib: loaded' -- bundled Hamlib failed to load"
+            exit 1
+          }
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/cwrobot -DestinationPath dist/CW_Robot-windows-x86_64.zip
+          Write-Host "Archive: $([math]::Round((Get-Item dist/CW_Robot-windows-x86_64.zip).Length / 1MB, 1)) MB"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CW_Robot-windows-x86_64
+          path: dist/CW_Robot-windows-x86_64.zip
+          retention-days: 30
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          bash packaging/generate_release_notes.sh
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release edit "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
+          else
+            gh release create "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md || true
+          fi
+          gh release upload "${GITHUB_REF_NAME}" dist/CW_Robot-windows-x86_64.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  build-macos:
+    name: macOS Apple Silicon
+    # Apple Silicon only, same rationale as similar projects: the Intel
+    # (macos-13) runner pool has long CI queue times and Apple Silicon is
+    # the dominant modern Mac target. No official Hamlib macOS binary
+    # exists either way, so an Intel build would need its own from-source
+    # bundling pass in addition to this one.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project + build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller pyinstaller-hooks-contrib
+
+      - name: Install Hamlib (Homebrew)
+        run: brew install hamlib
+
+      - name: Generate macOS icon
+        run: ./packaging/make_icns.sh
+
+      - name: Build with PyInstaller
+        run: pyinstaller packaging/cwrobot.spec --noconfirm --clean
+
+      - name: Verify build
+        run: |
+          app="dist/CW Robot.app/Contents/MacOS/cwrobot"
+          [ -f "$app" ] || { echo "ERROR: $app not found"; exit 1; }
+          echo "OK: $app ($(du -sh "$app" | cut -f1))"
+
+      - name: Bundle Hamlib
+        run: ./packaging/bundle_hamlib_macos.sh "dist/CW Robot.app" cwrobot
+
+      - name: Re-sign bundle ad-hoc
+        # Rewriting the copied dylibs' load commands (previous step)
+        # invalidates whatever signature they had, and the hardened-runtime
+        # launcher refuses to dlopen an unsigned or inconsistently-signed
+        # dylib -- so every dylib gets a fresh ad-hoc signature, then the
+        # whole bundle is re-signed with the entitlements that tell AMFI
+        # it's OK to load ad-hoc-signed children from the same bundle. See
+        # packaging/macos-entitlements.plist's comments for the failure
+        # mode this specifically works around.
+        run: |
+          BUNDLE="dist/CW Robot.app"
+          find "$BUNDLE" -type f \( -name "*.dylib" -o -name "*.so" \) \
+            -exec codesign --remove-signature {} \; 2>/dev/null || true
+          find "$BUNDLE" -type f \( -name "*.dylib" -o -name "*.so" \) \
+            -exec codesign --force --sign - {} \;
+          codesign --remove-signature "$BUNDLE" 2>/dev/null || true
+          codesign --force --sign - --options=runtime --deep \
+            --entitlements packaging/macos-entitlements.plist \
+            "$BUNDLE"
+          echo "--- bundle signature verification ---"
+          codesign -dv --entitlements - "$BUNDLE" 2>&1 | head -20
+
+      - name: Smoke test
+        # Same rationale as the Windows job's smoke test: runs the actual
+        # packaged .app headlessly on a real macOS runner, since nobody on
+        # this project has a Mac to test on by hand. This is what actually
+        # proves the Hamlib bundling + re-sign dance above worked, rather
+        # than just trusting it did.
+        run: |
+          export QT_QPA_PLATFORM=offscreen
+          set +e
+          output="$("dist/CW Robot.app/Contents/MacOS/cwrobot" --smoke-test 2>&1)"
+          status=$?
+          set -e
+          echo "$output"
+          if [ "$status" -ne 0 ]; then
+            echo "ERROR: smoke test exited with status $status" >&2
+            exit 1
+          fi
+          echo "$output" | grep -q "Hamlib: loaded" || {
+            echo "ERROR: smoke test did not report 'Hamlib: loaded' -- bundled Hamlib failed to load" >&2
+            exit 1
+          }
+
+      - name: Zip
+        run: |
+          cd dist
+          # -y preserves symlinks inside the bundle (PySide6's Qt
+          # frameworks have symlinks under Versions/Current) -- without it
+          # zip would dereference them and bloat the archive while
+          # breaking framework load semantics.
+          zip -ry CW_Robot-macos-arm64.zip "CW Robot.app"
+          echo "Archive: $(du -sh CW_Robot-macos-arm64.zip | cut -f1)"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CW_Robot-macos-arm64
+          path: dist/CW_Robot-macos-arm64.zip
+          retention-days: 30
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          bash packaging/generate_release_notes.sh
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release edit "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
+          else
+            gh release create "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md || true
+          fi
+          gh release upload "${GITHUB_REF_NAME}" dist/CW_Robot-macos-arm64.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

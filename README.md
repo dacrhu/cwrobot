@@ -36,10 +36,12 @@ macros, QSO logging).
 
 ## Download
 
-The easiest way to run CW Robot is the prebuilt **AppImage** from the
-[Releases page](https://github.com/dacrhu/cwrobot/releases) — it bundles
-its own Python, PySide6/Qt6, and Hamlib, so nothing needs to be installed
-first:
+The easiest way to run CW Robot is a prebuilt package from the
+[Releases page](https://github.com/dacrhu/cwrobot/releases) — each one
+bundles its own Python, PySide6/Qt6, and Hamlib, so nothing needs to be
+installed first.
+
+**Linux — AppImage** (the primary, most-tested platform):
 
 ```sh
 chmod +x CW_Robot-x86_64.AppImage
@@ -52,15 +54,27 @@ PipeWire device routing still needs `pactl` on the host (see "Audio
 handling" below) — everything else is self-contained. See
 `packaging/build_appimage.sh` if you'd rather build it yourself.
 
+**Windows and macOS (Apple Silicon) — beta.** Built the same way in CI
+(`.github/workflows/windows-macos-build.yml`, PyInstaller-based) and
+verified there with an automated startup smoke test on real Windows/macOS
+GitHub Actions runners, but nobody on this project has Windows/Mac
+hardware to test on by hand yet — reports of what does or doesn't work are
+very welcome. On macOS, the app is unsigned (ad-hoc signed only), so
+Gatekeeper will block the first launch: right-click → Open, or run
+`xattr -d com.apple.quarantine "CW Robot.app"`.
+
 ## Requirements
 
-- Linux (the only platform this has actually been built and tested on so
-  far; `pyserial`, the one OS-facing dependency besides audio/Qt, is
-  cross-platform, so Windows/macOS support may already mostly work —
-  untested, contributions/reports welcome).
+- Linux (the most-tested platform). Windows and macOS (Apple Silicon)
+  builds are available too — see "Download" above — but are new and less
+  battle-tested; `pyserial`, the one OS-facing dependency besides
+  audio/Qt, is cross-platform, so this should keep working, but
+  reports/contributions are welcome either way.
 - Python 3.11+
-- [Hamlib](https://hamlib.github.io/) (`libhamlib.so`) — only needed for
-  CAT keying; audio-tone TX and RX work fine without it.
+- [Hamlib](https://hamlib.github.io/) (`libhamlib.so` / `.dll` / `.dylib`)
+  — only needed for CAT keying; audio-tone TX and RX work fine without it.
+  Bundled already in every prebuilt package above; only relevant if you're
+  running from source.
 
 ## Installation (Fedora)
 
@@ -135,8 +149,20 @@ alongside it, and packs the result with `appimagetool` (must be on
 comments for the exact steps and the current portability caveat (the
 bundled Hamlib is linked against whatever glibc this build machine has).
 A GitHub Actions workflow (`.github/workflows/appimage.yml`) runs the same
-script and attaches the result to the GitHub Release on every `v*` tag
-push.
+script and attaches the result to the GitHub Release on every tag push.
+
+### Building the Windows/macOS packages
+
+These aren't built with a single standalone script the way the AppImage
+is — `.github/workflows/windows-macos-build.yml` runs
+[PyInstaller](https://pyinstaller.org/) against `packaging/cwrobot.spec`
+directly, bundling in a Hamlib runtime for each platform
+(`packaging/bundle_hamlib_macos.sh` re-links a Homebrew-installed copy on
+macOS, then the workflow ad-hoc re-signs the whole bundle; Windows
+downloads Hamlib's own official prebuilt zip). See that workflow file's
+comments for the full sequence, including the `--smoke-test`-based
+verification (`cwrobot.app`/`cwrobot.hamlib.ctypes_bindings`) that runs on
+every build.
 
 ## Running
 

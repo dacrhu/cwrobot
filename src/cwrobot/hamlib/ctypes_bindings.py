@@ -1,4 +1,4 @@
-"""Raw ctypes declarations for the Hamlib C API (libhamlib.so).
+"""Raw ctypes declarations for the Hamlib C API (libhamlib.so / .dll / .dylib).
 
 Design note -- why there's no struct-offset probing here (as an earlier
 version of the plan called for): modern Hamlib (>= ~4.1, i.e. what Fedora
@@ -35,14 +35,27 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 import logging
+import sys
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Sonames to try, in order, if ctypes.util.find_library("hamlib") comes up
-# empty (it can, depending on how ldconfig's cache is set up) -- covers the
-# current major version plus one either side so a future Hamlib 5 doesn't
-# immediately break this.
-_CANDIDATE_SONAMES = ["libhamlib.so.4", "libhamlib.so", "libhamlib.so.5", "libhamlib.so.3"]
+# Library filenames to try, in order, if ctypes.util.find_library("hamlib")
+# comes up empty (it can, depending on how ldconfig's cache is set up, and
+# doesn't reliably resolve anything at all on Windows/macOS). Per-platform
+# because each OS has its own shared-library naming convention; the Linux
+# list covers the current major version plus one either side so a future
+# Hamlib 5 doesn't immediately break this.
+if sys.platform == "win32":
+    # "libhamlib-4.dll" is the actual name Hamlib's own official Windows
+    # release zip ships (see hamlib-w64-<version>.zip's bin/ dir) -- the
+    # other two are just extra fallbacks in case a differently-built copy
+    # uses one of the more "expected" naming schemes instead.
+    _CANDIDATE_SONAMES = ["libhamlib-4.dll", "hamlib-4.dll", "hamlib.dll"]
+elif sys.platform == "darwin":
+    _CANDIDATE_SONAMES = ["libhamlib.4.dylib", "libhamlib.dylib"]
+else:
+    _CANDIDATE_SONAMES = ["libhamlib.so.4", "libhamlib.so", "libhamlib.so.5", "libhamlib.so.3"]
 
 RIG_OK = 0
 
@@ -91,15 +104,32 @@ RIG_LIST_FOREACH_CB = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_v
 
 
 class HamlibUnavailableError(RuntimeError):
-    """Raised when libhamlib.so can't be loaded at all. Callers should treat
-    this as "CAT keying is off the table this session" and disable/hide the
-    Hamlib TX option with the message here, while leaving audio TX and RX
-    unaffected."""
+    """Raised when the Hamlib shared library can't be loaded at all. Callers
+    should treat this as "CAT keying is off the table this session" and
+    disable/hide the Hamlib TX option with the message here, while leaving
+    audio TX and RX unaffected."""
 
 
 def _load_library() -> ctypes.CDLL:
+    names_to_try: list[str] = []
+
+    # Frozen (PyInstaller) Windows/macOS builds carry their own copy of the
+    # Hamlib runtime next to the executable -- see the "Bundle Hamlib" steps
+    # in .github/workflows/windows-macos-build.yml -- rather than relying on
+    # it being installed system-wide. Try that exact location first so a
+    # bundled build works out of the box; this is a no-op for the Linux
+    # AppImage, which instead relies on AppRun putting its bundled copy on
+    # LD_LIBRARY_PATH ahead of a bare soname lookup below.
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        for soname in _CANDIDATE_SONAMES:
+            candidate = exe_dir / soname
+            if candidate.is_file():
+                names_to_try.append(str(candidate))
+
     name = ctypes.util.find_library("hamlib")
-    names_to_try = [name] if name else []
+    if name and name not in names_to_try:
+        names_to_try.append(name)
     names_to_try += [n for n in _CANDIDATE_SONAMES if n not in names_to_try]
 
     last_error: OSError | None = None
@@ -111,10 +141,9 @@ def _load_library() -> ctypes.CDLL:
             continue
 
     raise HamlibUnavailableError(
-        "The Hamlib shared library (libhamlib.so) was not found on this "
-        "system -- CAT TX is unavailable because of this. Audio TX and RX "
-        "work fine regardless. "
-        f"(Last error: {last_error})"
+        "The Hamlib shared library (libhamlib.so / .dll / .dylib) was not "
+        "found on this system -- CAT TX is unavailable because of this. "
+        f"Audio TX and RX work fine regardless. (Last error: {last_error})"
     )
 
 
