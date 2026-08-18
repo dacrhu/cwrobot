@@ -171,6 +171,9 @@ class GoertzelToneDetector:
 
         self._window = np.zeros(window_samples, dtype=np.float32)
         self._accumulated = 0
+        # How many of self._window's samples are real audio rather than
+        # startup/post-resize zero-padding -- see _evaluate_window's guard.
+        self._real_samples_in_window = 0
 
         self._envelope_alpha = np.exp(-self.hop_duration_ms / ENVELOPE_TIME_CONSTANT_MS)
         self._envelope = 0.0
@@ -199,14 +202,21 @@ class GoertzelToneDetector:
 
     @property
     def squelch_currently_open(self) -> bool:
-        """Side-effect-free live readout of whether squelch would accept a
-        new mark right now -- for a UI indicator, independent of the
-        hang-time/periodic-audit bookkeeping that _is_squelched() updates."""
+        """Side-effect-free live readout of whether squelch is currently
+        letting output through -- for a UI indicator. Deliberately mirrors
+        the *actual* decode-gating state (self._is_on, plus the same
+        hang-time grace window _is_squelched() itself grants) rather than
+        re-running the strict ratio test in isolation: that standalone test
+        has no memory of the hang-time/periodic-audit leniency the real
+        gate applies, so it could read "closed" while hops were actively
+        being accepted into decoding -- confirmed against a real noise
+        trace, this made the LED an unreliable indicator of what the
+        decoder was actually doing."""
         if self._squelch_hops_seen < SQUELCH_MIN_HOPS_BEFORE_OPEN:
             return True
-        # bool(...): a bare numpy.bool_ from this comparison isn't accepted
-        # by PySide6's Signal(bool) marshaling further downstream.
-        return bool(self._envelope >= self._squelch_mean * self.squelch_ratio)
+        if self._is_on:
+            return True
+        return self._ms_since_confirmed_mark is not None and self._ms_since_confirmed_mark < SQUELCH_HANG_TIME_MS
 
     def request_retune(self, dot_unit_ms: float) -> None:
         """Record a desired window length derived from the current keying-
@@ -235,6 +245,7 @@ class GoertzelToneDetector:
         rather than carried across the resize, exactly as at startup."""
         self.window_samples = new_window_samples
         self._window = np.zeros(new_window_samples, dtype=np.float32)
+        self._real_samples_in_window = 0
         self._envelope = 0.0
         self._noise_floor = None
         self._peak = None
@@ -265,6 +276,7 @@ class GoertzelToneDetector:
         else:
             self._window[: window_len - n] = self._window[n:]
             self._window[window_len - n :] = chunk
+        self._real_samples_in_window = min(window_len, self._real_samples_in_window + n)
 
     def _evaluate_window(self) -> bool:
         # A pending resize is only ever applied while confirmed-silent (the
@@ -275,6 +287,21 @@ class GoertzelToneDetector:
         if self._pending_window_samples is not None and not self._is_on:
             self._apply_resize(self._pending_window_samples)
             self._pending_window_samples = None
+
+        if self._real_samples_in_window < len(self._window):
+            # self._window is still partly startup/post-resize zero-padding
+            # -- Goertzel power computed over it is an artifact of that
+            # padding, not a real reading of anything. Report "off" without
+            # touching noise_floor/peak/squelch_mean at all: seeding any of
+            # them from this artificially-low reading was confirmed (via a
+            # synthetic-noise repro) to sometimes latch a spurious "on"
+            # state and starve squelch_mean of real data for a long time
+            # afterward, entrenching a false-positive run largely immune to
+            # the configured squelch_ratio. Once the window is genuinely
+            # full of real audio (a few hops, ~window_samples/hop_samples),
+            # normal processing resumes exactly as before.
+            self._is_on = False
+            return False
 
         bin_width = self.sample_rate / self.window_samples
         power = sum(
