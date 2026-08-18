@@ -25,6 +25,12 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 -- SPECPATH is injecte
 ENTRY_SCRIPT = str(REPO_ROOT / "packaging" / "pyinstaller_entry.py")
 ICON_DIR = REPO_ROOT / "packaging" / "build"
 
+# Single source of truth for the app version (src/cwrobot/__init__.py) --
+# read directly off the source tree rather than relying on cwrobot already
+# being pip-installed in whatever environment happens to invoke pyinstaller.
+sys.path.insert(0, str(REPO_ROOT / "src"))
+from cwrobot import __version__ as APP_VERSION  # noqa: E402
+
 APP_NAME = "cwrobot"
 APP_DISPLAY_NAME = "CW Robot"
 
@@ -93,11 +99,7 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleName": APP_DISPLAY_NAME,
             "CFBundleDisplayName": APP_DISPLAY_NAME,
-            # Kept in sync with the "About" dialog's version in
-            # cwrobot.ui.main_window (the project's actual release-version
-            # convention -- git tags/pyproject.toml's own version field
-            # lag behind it) -- bump this alongside that string.
-            "CFBundleShortVersionString": "1.0.12",
+            "CFBundleShortVersionString": APP_VERSION,
             "NSHighResolutionCapable": True,
             # sounddevice/PortAudio opens the microphone; without this key
             # macOS's TCC privacy prompt never appears and the open just

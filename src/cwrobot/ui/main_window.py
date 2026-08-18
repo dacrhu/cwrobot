@@ -229,10 +229,12 @@ class MainWindow(QMainWindow):
     def _show_about(self) -> None:
         from PySide6.QtWidgets import QMessageBox
 
+        from cwrobot import __version__
+
         QMessageBox.information(
             self,
             "About",
-            "CW Robot - v1.0.12\n\nDeveloped by HG7WHD\n\nhttps://github.com/dacrhu/cwrobot",
+            f"CW Robot - v{__version__}\n\nDeveloped by HG7WHD\n\nhttps://github.com/dacrhu/cwrobot",
         )
 
     # -- Audio pipeline (capture -> ring buffer -> CwDecoder -> waterfall) --
