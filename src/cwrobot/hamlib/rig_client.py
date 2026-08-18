@@ -301,15 +301,17 @@ class HamlibRig:
 
     def wait_morse(self) -> bool:
         """Best-effort call into `rig_wait_morse` (blocks until the rig's
-        keyer queue is flushed, on backends that implement it). Not used by
-        HamlibTxBackend's main send/Stop path -- verified against a live
-        Hamlib dummy rig that this can return -RIG_ENAVAIL immediately on
-        backends that don't implement it at all, which would make it useless
-        as the sole way to detect "done" or wait out; tx.hamlib_backend uses
-        its own local timing estimate plus rig_stop_morse for that instead.
-        Kept as a real, callable wrapper (rather than omitted) since some
-        backends do implement it usefully. Returns True if Hamlib reports
-        the wait actually completed, False otherwise (logged, not raised)."""
+        keyer queue is flushed, on backends that implement it). Called by
+        tx.hamlib_backend.HamlibTxBackend after each word it sends, as the
+        authoritative "the rig is actually done" signal on top of its own
+        local timing estimate -- see that module's docstring for why the
+        estimate alone can't be trusted. Verified against a live Hamlib
+        dummy rig that this can return -RIG_ENAVAIL immediately on backends
+        that don't implement it at all, so HamlibTxBackend treats a call
+        here as best-effort/bounded, not a hard guarantee -- it falls back
+        to its local estimate alone in that case, same as before this was
+        wired in. Returns True if Hamlib reports the wait actually
+        completed, False otherwise (logged, not raised)."""
         if self._handle is None:
             return False
         ret = get_library().rig_wait_morse(self._handle, RIG_VFO_CURR)
