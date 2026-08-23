@@ -29,6 +29,19 @@ from cwrobot.ui.macro_editor_dialog import MacroEditorDialog
 # centered cluster, not a single control.
 MACRO_CAPTION_SPACING = 6
 
+# One glyph per macro group (see MacroDefinition.group), prefixed onto both
+# the short and long button of a pair -- purely a display concern, so it
+# lives here rather than on macros.MacroDefinition itself (kept Qt-free/
+# widget-agnostic, see macros.py's own docstring). Mirrors send_button's
+# "▶"/log_button's "✓" elsewhere in the app: plain, monochrome Unicode
+# symbols, not image icons.
+_GROUP_ICONS = {
+    "cq": "→",  # calling out, unaddressed
+    "reply_cq": "↩",  # replying to someone else's call
+    "report": "#",  # exchanging the RST (a number code)
+    "bye": "✕",  # signing off, ending the QSO
+}
+
 
 class MacroBar(QWidget):
     macro_activated = Signal(str)  # the macro's raw, unresolved template text
@@ -64,7 +77,8 @@ class MacroBar(QWidget):
                 buttons_row.addSpacing(20)
             previous_group = macro.group
 
-            button = QPushButton(macro.label, self)
+            icon = _GROUP_ICONS.get(macro.group, "")
+            button = QPushButton(f"{icon} {macro.label}" if icon else macro.label, self)
             button.setProperty("role", "macro")
             button.setProperty("macroGroup", macro.group)
             button.setProperty("macroShade", "light" if macro.key.endswith("_short") else "dark")

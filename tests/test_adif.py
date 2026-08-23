@@ -46,6 +46,7 @@ def test_format_qso_record_includes_every_populated_field():
     assert "<QTH:6>Berlin" in result
     assert "<GRIDSQUARE:4>JO62" in result
     assert "<STATION_CALLSIGN:6>HA1ABC" in result
+    assert "<OPERATOR:6>HA1ABC" in result
     assert "<COMMENT:8>Nice QSO" in result
 
 
@@ -53,7 +54,7 @@ def test_format_qso_record_omits_empty_optional_fields():
     record = QsoRecord(callsign="DL1XYZ", station_callsign="HA1ABC")
     result = format_qso_record(record)
 
-    assert result == "<CALL:6>DL1XYZ<MODE:2>CW<STATION_CALLSIGN:6>HA1ABC<EOR>\n"
+    assert result == "<CALL:6>DL1XYZ<MODE:2>CW<STATION_CALLSIGN:6>HA1ABC<OPERATOR:6>HA1ABC<EOR>\n"
     for tag in ("QSO_DATE", "TIME_ON", "FREQ", "BAND", "RST_SENT", "QTH", "GRIDSQUARE", "COMMENT"):
         assert f"<{tag}:" not in result
 

@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  CW Robot app icon: a flat, stylized straight CW key (pivot base + lever +
-  knob) on a rounded-square dark badge, with a short dot-dash mark echoing
-  Morse code. Colors reused from src/cwrobot/ui/style.py's own palette
-  (_TX_ACCENT "Carrot" for the key, the "bye" macro group's dark
+  CW Robot app icon: a flat, stylized straight CW key (base plate + pivot
+  post + near-horizontal lever ending in an attached knob, plus a small
+  back thumb-piece) on a rounded-square dark badge, with a short dot-dash
+  mark echoing Morse code. Colors reused from src/cwrobot/ui/style.py's own
+  palette (_TX_ACCENT "Carrot" for the key, the "bye" macro group's dark
   "Midnight Blue" for the background) so the icon reads as part of the same
   app, not a bolted-on placeholder.
 -->
@@ -22,22 +23,24 @@
     <circle cx="40" cy="230" r="140" fill="#3498db" opacity="0.10" />
   </g>
 
-  <!-- Straight key base plate -->
-  <rect x="56" y="168" width="144" height="24" rx="10" fill="#e67e22" />
+  <!-- Base plate the key mounts on -->
+  <rect x="46" y="176" width="164" height="18" rx="9" fill="#e67e22" />
 
-  <!-- Pivot post -->
-  <rect x="70" y="146" width="20" height="30" rx="6" fill="#e67e22" />
+  <!-- Pivot post, rising from the base plate -->
+  <rect x="86" y="144" width="22" height="36" rx="8" fill="#e67e22" />
 
-  <!-- Key lever, angled up toward the knob -->
-  <g transform="rotate(-18 80 160)">
-    <rect x="76" y="118" width="20" height="80" rx="10" fill="#e67e22" />
+  <!-- Lever + knob, tilted slightly off the pivot (resting position under
+       spring tension), grouped together and defined touching so the knob
+       reads as attached to the lever's end, not floating above it. -->
+  <g transform="rotate(-7 97 150)">
+    <rect x="93" y="141" width="118" height="17" rx="8.5" fill="#e67e22" />
+    <circle cx="211" cy="149.5" r="23" fill="#e67e22" />
+    <circle cx="211" cy="149.5" r="9" fill="#2c3e50" opacity="0.35" />
+    <!-- Back thumb-piece, the short arm behind the pivot -->
+    <circle cx="88" cy="149.5" r="11" fill="#e67e22" />
   </g>
 
-  <!-- Knob -->
-  <circle cx="150" cy="92" r="26" fill="#e67e22" />
-  <circle cx="150" cy="92" r="10" fill="#2c3e50" opacity="0.35" />
-
   <!-- Morse "dot dash" mark, lower right -->
-  <circle cx="176" cy="204" r="8" fill="#ecf0f1" />
-  <rect x="196" y="196" width="34" height="16" rx="8" fill="#ecf0f1" />
+  <circle cx="176" cy="212" r="8" fill="#ecf0f1" />
+  <rect x="196" y="204" width="34" height="16" rx="8" fill="#ecf0f1" />
 </svg>

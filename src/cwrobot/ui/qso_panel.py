@@ -128,7 +128,9 @@ class QsoPanel(QGroupBox):
         # QsoLogger per Settings → Logging, clearing the panel afterward) is
         # main_window's job, same as every other cross-panel action here --
         # this panel only owns the button.
-        self.log_button = QPushButton("Log QSO", self)
+        # "✓" mirrors send_button's "▶"/stop_button's "■" (ui.tx_panel):
+        # a plain checkmark for "record/confirm this contact".
+        self.log_button = QPushButton("✓ Log QSO", self)
         self.log_button.setProperty("role", "secondary")
         layout.addWidget(self.log_button, 1, time_column + 2)
 

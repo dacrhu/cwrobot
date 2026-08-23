@@ -111,7 +111,9 @@ class TxPanel(QGroupBox):
 
         buttons_col = QVBoxLayout()
         buttons_col.setSpacing(6)
-        self.send_button = QPushButton("Send", self)
+        # "▶"/"■" mirror the play/stop convention of any media transport
+        # control -- pairs naturally with stop_button's own "■" below.
+        self.send_button = QPushButton("▶ Send", self)
         self.send_button.setObjectName("sendButton")
         self.stop_button = QPushButton("■ Stop", self)
         self.stop_button.setObjectName("stopButton")

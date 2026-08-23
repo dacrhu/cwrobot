@@ -30,7 +30,7 @@ Locator is always forced to upper case.
 - **Frequency** — when Hamlib CAT is connected, the current VFO frequency
   is polled once a second and the field becomes read-only; otherwise type
   it in by hand.
-- **Log QSO** writes the contact out (file or UDP — see Settings →
+- **✓ Log QSO** writes the contact out (file or UDP — see Settings →
   Logging) and clears the panel for the next one. Missing required fields
   (Callsign, Frequency) are highlighted in red instead of silently
   failing.
@@ -42,7 +42,7 @@ Locator is always forced to upper case.
   `{RST_SENT}`, etc. from your own data (Settings → My Data) and the
   current QSO Data fields. Right-click a button to edit its text or see
   the full variable list.
-- Type or edit the text box directly, then **Send**; **■ Stop** aborts
+- Type or edit the text box directly, then **▶ Send**; **■ Stop** aborts
   mid-transmission.
 - **Speed (WPM)** sets sending speed; **⇄ RX speed** copies the RX panel's
   currently measured speed over.

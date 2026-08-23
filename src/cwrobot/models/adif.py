@@ -95,6 +95,11 @@ def format_qso_record(record: QsoRecord) -> str:
         ("QTH", record.qth),
         ("GRIDSQUARE", record.locator),
         ("STATION_CALLSIGN", record.station_callsign),
+        # Without an explicit OPERATOR field, external logging software
+        # falls back to whatever operator name *it* has configured (a
+        # person's name, not a callsign) for QSOs it receives over UDP --
+        # sending our own callsign here overrides that per-QSO.
+        ("OPERATOR", record.station_callsign),
         ("COMMENT", record.notes),
     ):
         if value:
