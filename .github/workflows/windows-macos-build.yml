@@ -142,9 +142,9 @@ jobs:
         run: |
           bash packaging/generate_release_notes.sh
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release edit "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
+            gh release edit "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
           else
-            gh release create "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md || true
+            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md || true
           fi
           gh release upload "${GITHUB_REF_NAME}" dist/CW_Robot-windows-x86_64.zip --clobber
         env:
@@ -277,9 +277,9 @@ jobs:
         run: |
           bash packaging/generate_release_notes.sh
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release edit "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
+            gh release edit "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md
           else
-            gh release create "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md || true
+            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file /tmp/release-notes.md || true
           fi
           gh release upload "${GITHUB_REF_NAME}" dist/CW_Robot-macos-arm64.zip --clobber
         env:
