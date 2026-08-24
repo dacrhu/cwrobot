@@ -49,6 +49,11 @@ class QsoRecord:
     # AppConfig.operator_callsign at record-build time (see
     # ui.main_window._on_log_qso_clicked).
     station_callsign: str = ""
+    # The operator's own name (ADIF MY_NAME) -- the counterpart to `name`
+    # above, which is the *remote* operator's name. Same sourcing pattern
+    # as station_callsign: filled from AppConfig.operator_name at
+    # record-build time (see ui.main_window._on_log_qso_clicked).
+    operator_name: str = ""
 
 
 class QsoLogger(Protocol):

@@ -100,6 +100,7 @@ def format_qso_record(record: QsoRecord) -> str:
         # person's name, not a callsign) for QSOs it receives over UDP --
         # sending our own callsign here overrides that per-QSO.
         ("OPERATOR", record.station_callsign),
+        ("MY_NAME", record.operator_name),
         ("COMMENT", record.notes),
     ):
         if value:

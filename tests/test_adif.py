@@ -28,6 +28,7 @@ def test_format_qso_record_includes_every_populated_field():
         name="Hans",
         notes="Nice QSO",
         station_callsign="HA1ABC",
+        operator_name="Kevin",
     )
     result = format_qso_record(record)
 
@@ -47,6 +48,7 @@ def test_format_qso_record_includes_every_populated_field():
     assert "<GRIDSQUARE:4>JO62" in result
     assert "<STATION_CALLSIGN:6>HA1ABC" in result
     assert "<OPERATOR:6>HA1ABC" in result
+    assert "<MY_NAME:5>Kevin" in result
     assert "<COMMENT:8>Nice QSO" in result
 
 

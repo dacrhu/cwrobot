@@ -406,6 +406,7 @@ class MainWindow(QMainWindow):
             locator=self.qso_panel.fields["locator"].text().strip(),
             name=self.qso_panel.fields["name"].text().strip(),
             station_callsign=self.config.operator_callsign,
+            operator_name=self.config.operator_name,
         )
         try:
             build_qso_logger(self.config).log_qso(record)
