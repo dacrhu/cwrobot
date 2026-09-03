@@ -15,9 +15,12 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
 
-CONFIG_VERSION = 8
+from cwrobot.hamlib.ctypes_bindings import RIG_MODEL_NETRIGCTL
+
+CONFIG_VERSION = 9
 
 TxBackendName = Literal["audio", "hamlib"]
+HamlibConnectionType = Literal["serial", "network"]
 LoggingMethod = Literal["file", "udp"]
 LoggingUdpFormat = Literal["adif", "wsjtx"]
 
@@ -63,10 +66,17 @@ class AppConfig:
     squelch_ratio: float = 14.0
     auto_bandwidth: bool = True  # window/bandwidth auto-tracks detected WPM; see dsp.tone_detector
 
-    # Hamlib CAT
+    # Hamlib CAT. Two ways to reach the rig (see hamlib_effective_target):
+    # a local serial port (rig_model_id + port_path + baud_rate), or a TCP
+    # connection to a running rigctld daemon (network_host:network_port),
+    # which is Hamlib's own NETRIGCTL backend -- rigctld already owns the
+    # real rig, so no rig model needs picking in that mode.
+    hamlib_connection_type: HamlibConnectionType = "serial"
     hamlib_rig_model_id: int | None = None
     hamlib_port_path: str = ""
     hamlib_baud_rate: int = 9600
+    hamlib_network_host: str = "localhost"
+    hamlib_network_port: int = 4532  # rigctld's default port
 
     # Own (operator) data -- see ui.settings_dialog. operator_callsign also
     # doubles as QsoRecord.station_callsign (the de-facto counterpart to
@@ -112,6 +122,23 @@ class AppConfig:
         filtered = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered)
 
+    def hamlib_effective_target(self) -> tuple[int | None, str, int | None]:
+        """The (model_id, port_path, baud_rate) triple to hand to
+        HamlibRig / HamlibTxBackend / FrequencyMonitor, resolving the
+        serial-vs-network connection choice into what those already
+        understand. In "network" mode that's Hamlib's NETRIGCTL backend
+        with a "host:port" pathname and no serial speed; in "serial" mode
+        it's just the configured serial fields verbatim (model_id may be
+        None there -- meaning "no rig picked yet").
+        """
+        if self.hamlib_connection_type == "network":
+            return (
+                RIG_MODEL_NETRIGCTL,
+                f"{self.hamlib_network_host}:{self.hamlib_network_port}",
+                None,
+            )
+        return (self.hamlib_rig_model_id, self.hamlib_port_path, self.hamlib_baud_rate)
+
     def save(self) -> None:
         path = config_path()
         tmp_path = path.with_suffix(".json.tmp")
@@ -144,6 +171,10 @@ def _migrate(data: dict) -> dict:
         data.setdefault("logging_udp_port", 2237)
     if version < 8:
         data.setdefault("logging_udp_format", "wsjtx")
+    if version < 9:
+        data.setdefault("hamlib_connection_type", "serial")
+        data.setdefault("hamlib_network_host", "localhost")
+        data.setdefault("hamlib_network_port", 4532)
     if version < CONFIG_VERSION:
         data["config_version"] = CONFIG_VERSION
     return data

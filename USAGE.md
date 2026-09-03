@@ -59,8 +59,10 @@ Locator is always forced to upper case.
 - **My Data** — your own callsign/name/locator/QTH, used by the macro
   variables above.
 - **Audio Devices** — input/output device selection.
-- **TX** — audio vs. Hamlib CAT mode, rig model/port/baud rate, and a
-  connection test button.
+- **TX** — audio vs. Hamlib CAT mode, and a connection test button. Hamlib
+  CAT connects either over a local **serial port** (rig model / port /
+  baud rate) or over the **network to a `rigctld` daemon** (host / port,
+  default `localhost:4532`) — pick one with the *Connection* selector.
 - **Logging** — how **Log QSO** delivers contacts: to a local ADIF file
   (one file per your callsign) or over UDP, either as raw ADIF (Log4OM-
   style) or the WSJT-X protocol (QLog, JTAlert, GridTracker, ...).

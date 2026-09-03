@@ -26,10 +26,12 @@ macros, QSO logging).
   either as a bare ADIF record (for Log4OM-style listeners) or framed as a
   WSJT-X Network Message ("Logged ADIF"), which QLog, JTAlert, GridTracker
   and others also understand.
-- **Hamlib CAT** — rig model picker searchable across the ~300 models
-  Hamlib supports, serial port autodetection, live VFO frequency polling
-  on its own background thread (so it won't freeze the UI even if the
-  radio is off or disconnected), and a one-click connection test.
+- **Hamlib CAT** — connect over a local serial port (rig model picker
+  searchable across the ~300 models Hamlib supports, serial port
+  autodetection) or over TCP to a running `rigctld` daemon; live VFO
+  frequency polling on its own background thread (so it won't freeze the
+  UI even if the radio is off or disconnected), and a one-click
+  connection test.
 - Picks up any input/output PipeWire or PulseAudio exposes, not just plain
   ALSA hardware devices — including another application's monitor/sink as
   an RX source.
@@ -133,6 +135,13 @@ dropdown (via `pyserial`, see `cwrobot/hamlib/serial_ports.py`); the field
 stays editable too, for when the radio isn't plugged in yet or is on an
 unusual path. `pyserial` itself is cross-platform (Linux/Windows/macOS),
 so port listing should work under Windows too, with no OS-specific code.
+
+The same tab's **Connection** selector switches from "Serial port" to
+"Network — rigctld (TCP)", which instead connects to a running `rigctld`
+daemon at a given host/port (default `localhost:4532`) via Hamlib's own
+NETRIGCTL backend. `rigctld` already owns the real rig, so no rig model or
+baud rate needs picking in that mode — handy when another program (a
+logger, WSJT-X, …) is already holding the serial port.
 
 ### Building the AppImage
 

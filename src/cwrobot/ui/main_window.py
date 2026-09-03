@@ -181,12 +181,12 @@ class MainWindow(QMainWindow):
     def _sync_freq_monitor_target(self) -> None:
         """Tells the frequency-monitor thread what (if anything) to poll,
         from the current config -- called once at startup and again
-        whenever the Settings dialog is accepted, since rig model/port/baud
-        and the TX backend choice are the only things that change this."""
+        whenever the Settings dialog is accepted, since the rig
+        connection settings and the TX backend choice are the only things
+        that change this."""
         if self.config.tx_backend == "hamlib":
-            self._freq_monitor_set_target.emit(
-                self.config.hamlib_rig_model_id, self.config.hamlib_port_path, self.config.hamlib_baud_rate
-            )
+            model_id, port_path, baud_rate = self.config.hamlib_effective_target()
+            self._freq_monitor_set_target.emit(model_id, port_path, baud_rate)
         else:
             self._freq_monitor_set_target.emit(None, "", None)
 
@@ -439,7 +439,8 @@ class MainWindow(QMainWindow):
         return backend
 
     def _build_hamlib_tx_backend(self) -> TxBackend | None:
-        if self.config.hamlib_rig_model_id is None:
+        model_id, port_path, baud_rate = self.config.hamlib_effective_target()
+        if model_id is None:
             self.statusBar().showMessage(
                 "No rig model selected -- set one on the Settings → TX tab."
             )
@@ -454,9 +455,9 @@ class MainWindow(QMainWindow):
         self._freq_monitor_pause.emit()
 
         backend = HamlibTxBackend(
-            model_id=self.config.hamlib_rig_model_id,
-            port_path=self.config.hamlib_port_path,
-            baud_rate=self.config.hamlib_baud_rate,
+            model_id=model_id,
+            port_path=port_path,
+            baud_rate=baud_rate,
         )
         try:
             backend.start()

@@ -58,6 +58,13 @@ def test_list_rig_models_includes_the_dummy_backend():
     assert dummy.model_name == "Dummy"
     assert str(dummy) == "Hamlib Dummy"
 
+    # The NETRIGCTL backend (used for the "Network -- rigctld (TCP)"
+    # connection mode) must be one of the built-in models too.
+    netrigctl = next(
+        m for m in models if m.model_id == ctypes_bindings.RIG_MODEL_NETRIGCTL
+    )
+    assert netrigctl.mfg_name == "Hamlib"
+
 
 def test_rig_open_close_lifecycle():
     rig = HamlibRig(model_id=ctypes_bindings.RIG_MODEL_DUMMY, port_path="/dev/null")

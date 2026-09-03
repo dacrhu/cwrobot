@@ -65,6 +65,8 @@ RIG_OK = 0
 RIG_EIO = 6  # enum rig_errcode_e: "IO error, including open failed"
 RIG_BUSBUSY = 14  # enum rig_errcode_e: "Collision on the bus" -- transient, worth retrying
 RIG_MODEL_DUMMY = 1  # RIG_MAKE_MODEL(RIG_DUMMY=0, 1)
+RIG_MODEL_NETRIGCTL = 2  # RIG_MAKE_MODEL(RIG_DUMMY=0, 2): rigctld TCP proxy backend
+                         # -- rig_pathname is a "host:port" address, not a device path
 RIG_VFO_CURR = 1 << 29  # RIG_VFO_N(29)
 RIG_PTT_OFF = 0
 RIG_PTT_ON = 1

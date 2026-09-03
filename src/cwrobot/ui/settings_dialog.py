@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 
 from cwrobot.audio import devices as audio_devices
 from cwrobot.config import AppConfig
-from cwrobot.hamlib.ctypes_bindings import HamlibUnavailableError
+from cwrobot.hamlib.ctypes_bindings import RIG_MODEL_NETRIGCTL, HamlibUnavailableError
 from cwrobot.hamlib.rig_client import HamlibError, HamlibRig, list_rig_models
 from cwrobot.hamlib.serial_ports import list_serial_ports
 from cwrobot.ui.style import make_separator
@@ -189,10 +189,28 @@ class SettingsDialog(QDialog):
             models = list_rig_models()
         except HamlibUnavailableError as exc:
             form.addRow(QLabel(f"CAT not available: {exc}"))
+            self.connection_type_combo = None
             self.rig_model_combo = None
             self.port_combo = None
             self.baud_rate_combo = None
+            self.network_host_edit = None
+            self.network_port_spinbox = None
             return widget
+
+        # Serial port vs. a TCP connection to a running rigctld daemon
+        # (Hamlib's NETRIGCTL backend). The serial fields (rig model /
+        # port / baud) and the network fields (host / port) below are
+        # shown/hidden to match -- see _update_hamlib_connection_rows.
+        self._tx_form = form
+        self.connection_type_combo = QComboBox(self)
+        self.connection_type_combo.addItem("Serial port", userData="serial")
+        self.connection_type_combo.addItem("Network — rigctld (TCP)", userData="network")
+        conn_index = self.connection_type_combo.findData(self.config.hamlib_connection_type)
+        self.connection_type_combo.setCurrentIndex(conn_index if conn_index >= 0 else 0)
+        self.connection_type_combo.currentIndexChanged.connect(
+            self._update_hamlib_connection_rows
+        )
+        form.addRow("Connection:", self.connection_type_combo)
 
         self.rig_model_combo = QComboBox(self)
         self.rig_model_combo.setEditable(True)
@@ -218,14 +236,14 @@ class SettingsDialog(QDialog):
         self.port_combo.lineEdit().setPlaceholderText("/dev/ttyUSB0")
         self._populate_port_combo()
 
-        port_row = QHBoxLayout()
-        port_row.setContentsMargins(0, 0, 0, 0)
-        port_row.addWidget(self.port_combo, stretch=1)
+        self._port_row = QHBoxLayout()
+        self._port_row.setContentsMargins(0, 0, 0, 0)
+        self._port_row.addWidget(self.port_combo, stretch=1)
         refresh_port_button = QPushButton("Refresh", self)
         refresh_port_button.setProperty("role", "secondary")
         refresh_port_button.clicked.connect(self._on_refresh_ports_clicked)
-        port_row.addWidget(refresh_port_button)
-        form.addRow("Port:", port_row)
+        self._port_row.addWidget(refresh_port_button)
+        form.addRow("Port:", self._port_row)
 
         self.baud_rate_combo = QComboBox(self)
         self.baud_rate_combo.setEditable(True)
@@ -233,6 +251,17 @@ class SettingsDialog(QDialog):
             self.baud_rate_combo.addItem(str(baud))
         self.baud_rate_combo.setCurrentText(str(self.config.hamlib_baud_rate))
         form.addRow("Speed (baud):", self.baud_rate_combo)
+
+        self.network_host_edit = QLineEdit(self.config.hamlib_network_host, self)
+        self.network_host_edit.setPlaceholderText("localhost")
+        form.addRow("rigctld host:", self.network_host_edit)
+
+        self.network_port_spinbox = QSpinBox(self)
+        self.network_port_spinbox.setRange(1, 65535)
+        self.network_port_spinbox.setValue(self.config.hamlib_network_port)
+        form.addRow("rigctld port:", self.network_port_spinbox)
+
+        self._update_hamlib_connection_rows()
 
         test_button = QPushButton("Test connection", self)
         test_button.setProperty("role", "secondary")
@@ -339,14 +368,39 @@ class SettingsDialog(QDialog):
     def _on_refresh_ports_clicked(self) -> None:
         self._populate_port_combo(preserve=self.port_combo.currentText())
 
+    def _update_hamlib_connection_rows(self) -> None:
+        """Show only the fields that matter for the selected connection
+        type -- serial (rig model / port / baud) vs. network (rigctld
+        host / port). No-op when the Hamlib section degraded to just a
+        label (libhamlib.so missing)."""
+        if self.connection_type_combo is None:
+            return
+        is_network = self.connection_type_combo.currentData() == "network"
+        for field in (self.rig_model_combo, self._port_row, self.baud_rate_combo):
+            self._tx_form.setRowVisible(field, not is_network)
+        for field in (self.network_host_edit, self.network_port_spinbox):
+            self._tx_form.setRowVisible(field, is_network)
+
+    def _current_hamlib_target(self) -> tuple[int | None, str, int | None]:
+        """The (model_id, port_path, baud_rate) triple for the values
+        currently entered in this dialog -- the live-widget mirror of
+        AppConfig.hamlib_effective_target()."""
+        if self.connection_type_combo is not None and (
+            self.connection_type_combo.currentData() == "network"
+        ):
+            host = self.network_host_edit.text().strip() or "localhost"
+            return (RIG_MODEL_NETRIGCTL, f"{host}:{self.network_port_spinbox.value()}", None)
+        return (
+            self.rig_model_combo.currentData(),
+            self.port_combo.currentText().strip(),
+            self._parsed_baud_rate(),
+        )
+
     def _on_test_connection_clicked(self) -> None:
-        model_id = self.rig_model_combo.currentData()
+        model_id, port_path, baud_rate = self._current_hamlib_target()
         if model_id is None:
             self.hamlib_test_result_label.setText("Select a rig model first.")
             return
-
-        port_path = self.port_combo.currentText().strip()
-        baud_rate = self._parsed_baud_rate()
 
         self.hamlib_test_result_label.setText("Connecting…")
         rig = HamlibRig(model_id=model_id, port_path=port_path, baud_rate=baud_rate)
@@ -394,11 +448,14 @@ class SettingsDialog(QDialog):
         # leave the existing config values untouched in that case rather
         # than clobbering them with nothing to save.
         if self.rig_model_combo is not None:
+            self.config.hamlib_connection_type = self.connection_type_combo.currentData()
             self.config.hamlib_rig_model_id = self.rig_model_combo.currentData()
             self.config.hamlib_port_path = self.port_combo.currentText().strip()
             baud_rate = self._parsed_baud_rate()
             if baud_rate is not None:
                 self.config.hamlib_baud_rate = baud_rate
+            self.config.hamlib_network_host = self.network_host_edit.text().strip() or "localhost"
+            self.config.hamlib_network_port = self.network_port_spinbox.value()
 
         self.config.logging_method = self.logging_method_combo.currentData()
         self.config.logging_folder = self.logging_folder_edit.text().strip()

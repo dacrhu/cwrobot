@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import re
 import time
 from dataclasses import dataclass
 
@@ -133,6 +134,13 @@ def _diagnose_port_open_failure(port_path: str) -> str | None:
     error)."""
     if not port_path:
         return None
+    # A "host:port" pathname (the NETRIGCTL / rigctld network backend) is
+    # not a serial device -- a pyserial probe of it would just fail with
+    # its own unrelated "could not open port" message. The far likelier
+    # cause here is simply that rigctld isn't running / reachable at that
+    # address, so say that instead.
+    if re.fullmatch(r"[^/\\]+:\d+", port_path):
+        return f"is rigctld running and reachable at {port_path}?"
     try:
         probe = serial.Serial(port_path, timeout=0)
     except Exception as exc:
