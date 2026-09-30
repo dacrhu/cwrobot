@@ -157,6 +157,8 @@ class MainWindow(QMainWindow):
         self.rx_panel.bandwidth_slider.valueChanged.connect(self._on_bandwidth_changed)
         self.rx_panel.squelch_slider.valueChanged.connect(self._on_squelch_ratio_changed)
         self.rx_panel.auto_bandwidth_checkbox.toggled.connect(self._on_auto_bandwidth_changed)
+        self.rx_panel.auto_rx_speed_checkbox.toggled.connect(self._on_rx_speed_mode_changed)
+        self.rx_panel.rx_speed_spinbox.valueChanged.connect(self._on_rx_speed_mode_changed)
 
         self.tx_panel.send_button.clicked.connect(self._on_tx_send_clicked)
         self.tx_panel.stop_button.clicked.connect(self._on_tx_stop_clicked)
@@ -172,6 +174,8 @@ class MainWindow(QMainWindow):
         self.rx_panel.bandwidth_slider.setValue(self.config.detection_bin_span)
         self.rx_panel.squelch_slider.setValue(round(self.config.squelch_ratio))
         self.rx_panel.auto_bandwidth_checkbox.setChecked(self.config.auto_bandwidth)
+        self.rx_panel.rx_speed_spinbox.setValue(self.config.rx_speed_wpm)
+        self.rx_panel.auto_rx_speed_checkbox.setChecked(self.config.auto_rx_speed)
         self.tx_panel.speed_spinbox.setValue(self.config.tx_speed_wpm)
         self.tx_panel.manual_keying_checkbox.setChecked(self.config.manual_keying_emulation)
         self.tx_panel.manual_keying_slider.setValue(self.config.manual_keying_intensity)
@@ -260,6 +264,15 @@ class MainWindow(QMainWindow):
             self._decoder.auto_bandwidth = enabled
             self._apply_effective_bandwidth()
 
+    def _on_rx_speed_mode_changed(self, _value: object = None) -> None:
+        self.config.auto_rx_speed = self.rx_panel.auto_rx_speed_checkbox.isChecked()
+        self.config.rx_speed_wpm = self.rx_panel.rx_speed_spinbox.value()
+        if self._decoder is not None:
+            self._decoder.manual_wpm = self._manual_rx_wpm()
+
+    def _manual_rx_wpm(self) -> float | None:
+        return None if self.config.auto_rx_speed else float(self.config.rx_speed_wpm)
+
     def _apply_effective_bandwidth(self) -> None:
         if self._decoder is None:
             return
@@ -309,6 +322,7 @@ class MainWindow(QMainWindow):
         decoder.detection_bin_span = self.config.detection_bin_span
         decoder.squelch_ratio = self.config.squelch_ratio
         decoder.auto_bandwidth = self.config.auto_bandwidth
+        decoder.manual_wpm = self._manual_rx_wpm()
 
         thread = QThread(self)
         decoder.moveToThread(thread)

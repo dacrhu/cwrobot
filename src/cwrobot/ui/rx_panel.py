@@ -40,6 +40,10 @@ BANDWIDTH_SLIDER_MIN = 0
 BANDWIDTH_SLIDER_MAX = 6
 BANDWIDTH_SLIDER_DEFAULT = 1
 
+RX_SPEED_MIN_WPM = 5
+RX_SPEED_MAX_WPM = 60
+RX_SPEED_DEFAULT_WPM = 20
+
 SQUELCH_SLIDER_MIN = 0  # 0 = squelch fully open (effectively disabled), see decoder.squelch_ratio setter
 SQUELCH_SLIDER_MAX = 30
 SQUELCH_SLIDER_DEFAULT = 14
@@ -119,6 +123,22 @@ class RxPanel(QGroupBox):
 
         self.wpm_label = QLabel("RX speed: -- WPM")
         controls_layout.addWidget(self.wpm_label)
+
+        self.rx_speed_spinbox = QSpinBox(self)
+        self.rx_speed_spinbox.setRange(RX_SPEED_MIN_WPM, RX_SPEED_MAX_WPM)
+        self.rx_speed_spinbox.setValue(RX_SPEED_DEFAULT_WPM)
+        self.rx_speed_spinbox.setSuffix(" WPM")
+        controls_layout.addWidget(self.rx_speed_spinbox)
+
+        self.auto_rx_speed_checkbox = QCheckBox("Automatic", self)
+        self.auto_rx_speed_checkbox.setChecked(True)
+        self.auto_rx_speed_checkbox.setToolTip(
+            "When checked, the receive speed is detected automatically. "
+            "When unchecked, the decoder uses the fixed speed set above."
+        )
+        controls_layout.addWidget(self.auto_rx_speed_checkbox)
+        self.auto_rx_speed_checkbox.toggled.connect(self._on_auto_rx_speed_toggled)
+        self._on_auto_rx_speed_toggled(True)
 
         controls_layout.addWidget(make_separator(self))
 
@@ -218,6 +238,9 @@ class RxPanel(QGroupBox):
 
     def _on_squelch_slider_changed(self, value: int) -> None:
         self.squelch_ratio_label.setText("off" if value == 0 else f"{value}×")
+
+    def _on_auto_rx_speed_toggled(self, enabled: bool) -> None:
+        self.rx_speed_spinbox.setDisabled(enabled)
 
     def _on_auto_bandwidth_toggled(self, enabled: bool) -> None:
         self.bandwidth_slider.setDisabled(enabled)

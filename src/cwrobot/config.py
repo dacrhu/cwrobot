@@ -17,7 +17,7 @@ from typing import Literal
 
 from cwrobot.hamlib.ctypes_bindings import RIG_MODEL_NETRIGCTL
 
-CONFIG_VERSION = 9
+CONFIG_VERSION = 10
 
 TxBackendName = Literal["audio", "hamlib"]
 HamlibConnectionType = Literal["serial", "network"]
@@ -65,6 +65,9 @@ class AppConfig:
     detection_bin_span: int = 1  # Goertzel bins +/- target; see dsp.tone_detector
     squelch_ratio: float = 14.0
     auto_bandwidth: bool = True  # window/bandwidth auto-tracks detected WPM; see dsp.tone_detector
+
+    auto_rx_speed: bool = True  # RX keying speed auto-detected; else fixed at rx_speed_wpm
+    rx_speed_wpm: int = 20
 
     # Hamlib CAT. Two ways to reach the rig (see hamlib_effective_target):
     # a local serial port (rig_model_id + port_path + baud_rate), or a TCP
@@ -175,6 +178,9 @@ def _migrate(data: dict) -> dict:
         data.setdefault("hamlib_connection_type", "serial")
         data.setdefault("hamlib_network_host", "localhost")
         data.setdefault("hamlib_network_port", 4532)
+    if version < 10:
+        data.setdefault("auto_rx_speed", True)
+        data.setdefault("rx_speed_wpm", 20)
     if version < CONFIG_VERSION:
         data["config_version"] = CONFIG_VERSION
     return data

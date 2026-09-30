@@ -132,6 +132,15 @@ class CwDecoderCore:
         if not enabled:
             self._tone_detector.request_manual_window()
 
+    @property
+    def manual_wpm(self) -> float | None:
+        """Fixed RX keying speed, or None for automatic detection."""
+        return self._morse_decoder.manual_wpm
+
+    @manual_wpm.setter
+    def manual_wpm(self, wpm: float | None) -> None:
+        self._morse_decoder.set_manual_wpm(wpm)
+
     def reset_decoder(self) -> None:
         self._morse_decoder.reset()
 
@@ -247,6 +256,14 @@ class CwDecoder(QObject):
     @auto_bandwidth.setter
     def auto_bandwidth(self, enabled: bool) -> None:
         self._core.auto_bandwidth = enabled
+
+    @property
+    def manual_wpm(self) -> float | None:
+        return self._core.manual_wpm
+
+    @manual_wpm.setter
+    def manual_wpm(self, wpm: float | None) -> None:
+        self._core.manual_wpm = wpm
 
     def stop(self) -> None:
         self._running = False

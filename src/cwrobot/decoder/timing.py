@@ -133,6 +133,20 @@ class AdaptiveMorseDecoder:
 
         self._implausible_mark_pressure = 0
 
+        # Manual speed override (see set_manual_wpm): when not None, dot_unit_ms
+        # is pinned to it and every adaptive estimator/bootstrap is bypassed.
+        self._manual_wpm: float | None = None
+
+    @property
+    def manual_wpm(self) -> float | None:
+        return self._manual_wpm
+
+    def set_manual_wpm(self, wpm: float | None) -> None:
+        """Pin the keying speed to `wpm` (None = back to automatic
+        detection, which re-runs the cold-start bootstrap)."""
+        self._manual_wpm = wpm
+        self.reset(wpm=wpm if wpm is not None else DEFAULT_WPM)
+
     @property
     def current_wpm(self) -> float:
         return wpm_from_dot_unit_ms(self.dot_unit_ms)
@@ -156,7 +170,10 @@ class AdaptiveMorseDecoder:
         self.dot_unit_ms = max(MIN_DOT_UNIT_MS, min(MAX_DOT_UNIT_MS, dot_unit_ms_from_wpm(wpm)))
         self._dot_unit_ema = self.dot_unit_ms
         self._symbol_buffer = ""
-        self._bootstrap_active = True
+        if self._manual_wpm is not None:
+            self.dot_unit_ms = max(MIN_DOT_UNIT_MS, min(MAX_DOT_UNIT_MS, dot_unit_ms_from_wpm(self._manual_wpm)))
+            self._dot_unit_ema = self.dot_unit_ms
+        self._bootstrap_active = self._manual_wpm is None
         self._bootstrap_events = []
         self._bootstrap_marks_seen = 0
         self._implausible_mark_pressure = 0
@@ -330,6 +347,8 @@ class AdaptiveMorseDecoder:
         toward a normally-classified dash's implied dot length, so a
         dot_unit_ms stuck too small isn't solely dependent on reaching the
         much more disruptive implausible-mark path below to ever recover."""
+        if self._manual_wpm is not None:
+            return
         implied_dot_ms = duration_ms / 3.0
         if implied_dot_ms > self.dot_unit_ms * DASH_IMPLIED_DOT_TRIGGER_RATIO:
             self.dot_unit_ms += DASH_IMPLIED_DOT_BLEND * (implied_dot_ms - self.dot_unit_ms)
@@ -348,8 +367,9 @@ class AdaptiveMorseDecoder:
         the bad estimate in the first place -- so a single early noise-
         influenced mark could keep re-poisoning the estimate indefinitely
         instead of the decoder ever converging."""
-        self.dot_unit_ms = max(MIN_DOT_UNIT_MS, min(MAX_DOT_UNIT_MS, seed_dot_unit_ms))
-        self._dot_unit_ema = self.dot_unit_ms
+        if self._manual_wpm is None:
+            self.dot_unit_ms = max(MIN_DOT_UNIT_MS, min(MAX_DOT_UNIT_MS, seed_dot_unit_ms))
+            self._dot_unit_ema = self.dot_unit_ms
         self._symbol_buffer = ""
         self._implausible_mark_pressure = 0
 
@@ -361,6 +381,8 @@ class AdaptiveMorseDecoder:
         return char
 
     def _update_dot_unit_estimate(self, duration_ms: float) -> None:
+        if self._manual_wpm is not None:
+            return
         # Primary estimator: slow-rising minimum tracker. Only a genuinely
         # shorter mark can pull it down; it drifts upward slowly otherwise,
         # so it can still follow a sender who speeds up.
