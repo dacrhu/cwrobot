@@ -36,9 +36,12 @@ SELECTION_POPUP_DELAY_MS = 200
 # Bandwidth slider steps in raw Goertzel bin_span units (see
 # dsp.tone_detector.GoertzelToneDetector.bin_span); main_window translates
 # the resulting value to/from Hz for display via effective_bandwidth_hz.
+# The slider is in quarter-bin steps (value / BANDWIDTH_SLIDER_STEPS_PER_BIN
+# = bin_span), which makes the bandwidth effectively continuous.
+BANDWIDTH_SLIDER_STEPS_PER_BIN = 4
 BANDWIDTH_SLIDER_MIN = 0
-BANDWIDTH_SLIDER_MAX = 6
-BANDWIDTH_SLIDER_DEFAULT = 1
+BANDWIDTH_SLIDER_MAX = 6 * BANDWIDTH_SLIDER_STEPS_PER_BIN
+BANDWIDTH_SLIDER_DEFAULT = 1 * BANDWIDTH_SLIDER_STEPS_PER_BIN
 
 RX_SPEED_MIN_WPM = 5
 RX_SPEED_MAX_WPM = 60

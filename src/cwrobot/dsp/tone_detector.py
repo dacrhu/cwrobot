@@ -19,7 +19,7 @@ from cwrobot.dsp.goertzel import goertzel_power
 PROCESSING_SAMPLE_RATE = 8_000
 WINDOW_SAMPLES = 128  # 16 ms at 8 kHz
 HOP_SAMPLES = 32  # 4 ms at 8 kHz
-BIN_SPAN = 1  # target bin +/- this many bins are summed (tolerates VFO mistuning)
+BIN_SPAN = 1.0  # target bin +/- this many bins are summed (tolerates VFO mistuning)
 
 ENVELOPE_TIME_CONSTANT_MS = 4.0
 NOISE_FLOOR_RISE_PER_HOP = 1.0008  # lets the floor slowly track upward drift
@@ -160,7 +160,7 @@ class GoertzelToneDetector:
         sample_rate: int = PROCESSING_SAMPLE_RATE,
         window_samples: int = WINDOW_SAMPLES,
         hop_samples: int = HOP_SAMPLES,
-        bin_span: int = BIN_SPAN,
+        bin_span: float = BIN_SPAN,
     ) -> None:
         self.target_freq_hz = target_freq_hz
         self.sample_rate = sample_rate
@@ -304,9 +304,13 @@ class GoertzelToneDetector:
             return False
 
         bin_width = self.sample_rate / self.window_samples
+        # bin_span may be fractional (continuous bandwidth control): probe
+        # evenly spaced offsets across +/- bin_span, at most one bin apart.
+        n_probes = int(np.ceil(2 * self.bin_span - 1e-9)) + 1
+        offsets = np.linspace(-self.bin_span, self.bin_span, n_probes)
         power = sum(
-            goertzel_power(self._window, self.sample_rate, self.target_freq_hz + offset * bin_width)
-            for offset in range(-self.bin_span, self.bin_span + 1)
+            goertzel_power(self._window, self.sample_rate, self.target_freq_hz + float(offset) * bin_width)
+            for offset in offsets
         )
 
         self._envelope = self._envelope * self._envelope_alpha + power * (1 - self._envelope_alpha)

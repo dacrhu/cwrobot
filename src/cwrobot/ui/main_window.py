@@ -26,7 +26,7 @@ from cwrobot.tx.encoder import manual_keying_jitter_from_level
 from cwrobot.tx.hamlib_backend import HamlibTxBackend
 from cwrobot.tx.worker import TxWorker
 from cwrobot.ui.qso_panel import QsoPanel
-from cwrobot.ui.rx_panel import RxPanel
+from cwrobot.ui.rx_panel import BANDWIDTH_SLIDER_STEPS_PER_BIN, RxPanel
 from cwrobot.ui.settings_dialog import SettingsDialog
 from cwrobot.ui.tx_panel import TxPanel
 
@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
     def _apply_config_to_widgets(self) -> None:
         self.rx_panel.pitch_spinbox.setValue(self.config.target_pitch_hz)
         self.rx_panel.waterfall.set_half_span(self.config.waterfall_half_span_hz)
-        self.rx_panel.bandwidth_slider.setValue(self.config.detection_bin_span)
+        self.rx_panel.bandwidth_slider.setValue(round(self.config.detection_bin_span * BANDWIDTH_SLIDER_STEPS_PER_BIN))
         self.rx_panel.squelch_slider.setValue(round(self.config.squelch_ratio))
         self.rx_panel.auto_bandwidth_checkbox.setChecked(self.config.auto_bandwidth)
         self.rx_panel.rx_speed_spinbox.setValue(self.config.rx_speed_wpm)
@@ -247,7 +247,8 @@ class MainWindow(QMainWindow):
         if self._decoder is not None:
             self._decoder.target_pitch_hz = hz
 
-    def _on_bandwidth_changed(self, bin_span: int) -> None:
+    def _on_bandwidth_changed(self, slider_value: int) -> None:
+        bin_span = slider_value / BANDWIDTH_SLIDER_STEPS_PER_BIN
         self.config.detection_bin_span = bin_span
         if self._decoder is not None:
             self._decoder.detection_bin_span = bin_span

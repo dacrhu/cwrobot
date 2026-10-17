@@ -21,7 +21,7 @@ the actual repaint rate from the (independent, audio-driven) row-push rate.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import QSize, QTimer
+from PySide6.QtCore import QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
@@ -235,6 +235,26 @@ class WaterfallWidget(QWidget):
         # yellow), so the guides stay unambiguous against any signal level.
         if self._signal_width_hz:
             half_width = self._signal_width_hz / 2.0
+            # Tint the two half-bands (centre..edge) with a translucent fill
+            # and label them: below the pitch = LSB side, above = USB side.
+            center_x = rect.width() * (self._center_hz - low) / span
+            left_x = rect.width() * (self._center_hz - half_width - low) / span
+            right_x = rect.width() * (self._center_hz + half_width - low) / span
+            band_h = rect.height()
+            painter.fillRect(QRectF(left_x, 0, center_x - left_x, band_h), QColor(60, 140, 255, 45))
+            painter.fillRect(QRectF(center_x, 0, right_x - center_x, band_h), QColor(255, 170, 40, 45))
+            painter.setPen(QColor(255, 255, 255, 210))
+            label_h = painter.fontMetrics().height()
+            painter.drawText(
+                QRectF(left_x, 2, center_x - left_x, label_h),
+                Qt.AlignmentFlag.AlignCenter,
+                "LSB",
+            )
+            painter.drawText(
+                QRectF(center_x, 2, right_x - center_x, label_h),
+                Qt.AlignmentFlag.AlignCenter,
+                "USB",
+            )
             painter.setPen(QPen(QColor(255, 0, 220), 2))
             for edge_hz in (self._center_hz - half_width, self._center_hz + half_width):
                 x = rect.width() * (edge_hz - low) / span

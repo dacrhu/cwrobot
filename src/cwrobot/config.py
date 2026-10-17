@@ -62,7 +62,7 @@ class AppConfig:
     # RX
     rx_input_device: str | None = None
     waterfall_half_span_hz: int = 1000
-    detection_bin_span: int = 1  # Goertzel bins +/- target; see dsp.tone_detector
+    detection_bin_span: float = 1.0  # Goertzel bins +/- target; see dsp.tone_detector
     squelch_ratio: float = 14.0
     auto_bandwidth: bool = True  # window/bandwidth auto-tracks detected WPM; see dsp.tone_detector
 

@@ -95,8 +95,8 @@ class CwDecoderCore:
         return self._tone_detector.bin_span
 
     @detection_bin_span.setter
-    def detection_bin_span(self, bins: int) -> None:
-        self._tone_detector.bin_span = max(0, bins)
+    def detection_bin_span(self, bins: float) -> None:
+        self._tone_detector.bin_span = max(0.0, float(bins))
 
     @property
     def squelch_ratio(self) -> float:
@@ -238,7 +238,7 @@ class CwDecoder(QObject):
         return self._core.detection_bin_span
 
     @detection_bin_span.setter
-    def detection_bin_span(self, bins: int) -> None:
+    def detection_bin_span(self, bins: float) -> None:
         self._core.detection_bin_span = bins
 
     @property
