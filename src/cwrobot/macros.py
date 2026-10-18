@@ -49,24 +49,31 @@ class MacroDefinition:
     key: str
     label: str
     default_text: str
-    # Which of the 4 short/long pairs this belongs to -- ui.macro_bar uses
-    # this (plus whether `key` ends in "_short"/"_long") to color-code the
-    # quick-buttons: one hue per group, a lighter shade for "short" and a
-    # darker one for "long", so the 8 buttons read as 4 related pairs
-    # instead of one undifferentiated row.
+    # Which of the 4 steps (CQ/reply/report/bye) this belongs to --
+    # ui.macro_bar uses this (plus whether `key` ends in "_short"/"_long")
+    # to color-code the quick-buttons: one hue per group, a lighter shade
+    # for "short" and a darker one for "long", so the same step reads the
+    # same in both sets of four.
     group: str
 
 
 DEFAULT_MACROS: list[MacroDefinition] = [
+    # Ordered by QSO flow, not by short/long pair: set 1 (F1-F4) then
+    # set 2 (F5-F8), each running CQ -> Reply -> Report -> Bye. ui.macro_bar
+    # relies on this order for both layout and its F-key shortcuts.
     MacroDefinition("cq_short", "CQ short", "CQ CQ DE {MY_CALLSIGN} {MY_CALLSIGN} K", group="cq"),
+    MacroDefinition(
+        "reply_cq_short", "Reply to CQ short", "{CALLSIGN} DE {MY_CALLSIGN} K", group="reply_cq"
+    ),
+    MacroDefinition("report_short", "Report short", "UR RST {RST_SENT} K", group="report"),
+    MacroDefinition(
+        "bye_short", "Bye short", "TNX QSO 73 {CALLSIGN} DE {MY_CALLSIGN} SK", group="bye"
+    ),
     MacroDefinition(
         "cq_long",
         "CQ long",
         "CQ CQ CQ DE {MY_CALLSIGN} {MY_CALLSIGN} {MY_CALLSIGN} CQ DE {MY_CALLSIGN} K",
         group="cq",
-    ),
-    MacroDefinition(
-        "reply_cq_short", "Reply to CQ short", "{CALLSIGN} DE {MY_CALLSIGN} K", group="reply_cq"
     ),
     MacroDefinition(
         "reply_cq_long",
@@ -75,15 +82,11 @@ DEFAULT_MACROS: list[MacroDefinition] = [
         "UR RST {RST_SENT} {RST_SENT} NAME {MY_NAME} {MY_NAME} QTH {MY_QTH} {MY_QTH} K",
         group="reply_cq",
     ),
-    MacroDefinition("report_short", "Report short", "UR RST {RST_SENT} K", group="report"),
     MacroDefinition(
         "report_long",
         "Report long",
         "UR RST {RST_SENT} {RST_SENT} NAME {MY_NAME} QTH {MY_QTH} BK",
         group="report",
-    ),
-    MacroDefinition(
-        "bye_short", "Bye short", "TNX QSO 73 {CALLSIGN} DE {MY_CALLSIGN} SK", group="bye"
     ),
     MacroDefinition(
         "bye_long",
@@ -140,3 +143,13 @@ def get_macro_text(config: AppConfig, macro: MacroDefinition) -> str:
 
 def set_macro_text(config: AppConfig, macro_key: str, text: str) -> None:
     config.macro_texts[macro_key] = text
+
+
+def get_macro_label(config: AppConfig, macro: MacroDefinition) -> str:
+    """The macro's button name: the operator's rename if there is one (and
+    it isn't blank), otherwise its built-in default label."""
+    return config.macro_labels.get(macro.key, "").strip() or macro.label
+
+
+def set_macro_label(config: AppConfig, macro_key: str, label: str) -> None:
+    config.macro_labels[macro_key] = label.strip()

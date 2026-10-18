@@ -17,7 +17,7 @@ from typing import Literal
 
 from cwrobot.hamlib.ctypes_bindings import RIG_MODEL_NETRIGCTL
 
-CONFIG_VERSION = 10
+CONFIG_VERSION = 12
 
 TxBackendName = Literal["audio", "hamlib"]
 HamlibConnectionType = Literal["serial", "network"]
@@ -108,6 +108,12 @@ class AppConfig:
     # so shipping a new default macro in a later version never needs a
     # migration step.
     macro_texts: dict[str, str] = field(default_factory=dict)
+    # Operator renames of the quick buttons, same keying/override scheme as
+    # macro_texts (a missing or blank entry means "use the default label").
+    macro_labels: dict[str, str] = field(default_factory=dict)
+
+    # Check GitHub Releases for a newer version at startup (see cwrobot.updates).
+    check_for_updates: bool = True
 
     @classmethod
     def load(cls) -> "AppConfig":
@@ -181,6 +187,10 @@ def _migrate(data: dict) -> dict:
     if version < 10:
         data.setdefault("auto_rx_speed", True)
         data.setdefault("rx_speed_wpm", 20)
+    if version < 11:
+        data.setdefault("macro_labels", {})
+    if version < 12:
+        data.setdefault("check_for_updates", True)
     if version < CONFIG_VERSION:
         data["config_version"] = CONFIG_VERSION
     return data

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QCompleter,
     QDialog,
@@ -58,6 +59,7 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._build_audio_tab(), "Audio Devices")
         tabs.addTab(self._build_tx_tab(), "TX")
         tabs.addTab(self._build_logging_tab(), "Logging")
+        tabs.addTab(self._build_general_tab(), "General")
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -87,6 +89,14 @@ class SettingsDialog(QDialog):
         form.addRow("Name:", self.name_edit)
         form.addRow("Locator:", self.locator_edit)
         form.addRow("QTH:", self.qth_edit)
+        return widget
+
+    def _build_general_tab(self) -> QWidget:
+        widget = QWidget(self)
+        form = QFormLayout(widget)
+        self.check_updates_checkbox = QCheckBox("Check for a newer version at startup", self)
+        self.check_updates_checkbox.setChecked(self.config.check_for_updates)
+        form.addRow(self.check_updates_checkbox)
         return widget
 
     def _build_audio_tab(self) -> QWidget:
@@ -462,6 +472,8 @@ class SettingsDialog(QDialog):
         self.config.logging_udp_host = self.logging_udp_host_edit.text().strip() or "127.0.0.1"
         self.config.logging_udp_port = self.logging_udp_port_spinbox.value()
         self.config.logging_udp_format = self.logging_udp_format_combo.currentData()
+
+        self.config.check_for_updates = self.check_updates_checkbox.isChecked()
 
         self.config.save()
         self.accept()

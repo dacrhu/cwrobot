@@ -20,7 +20,8 @@ macros, QSO logging).
 - **Transmit** — audio-tone sidetone output or Hamlib CAT keying,
   adjustable speed with a one-click "match RX speed" shortcut, manual-
   keying jitter emulation, eight customizable quick-text macro buttons
-  (CQ, reply, report, sign-off — short/long variants).
+  (CQ, reply, report, sign-off × 2, renamable, on F1–F8; F12 sends,
+  Esc stops, F9 logs).
 - **QSO logging** — one click logs the current contact to an ADIF file
   (one growing file per operator callsign) or sends it live over UDP,
   either as a bare ADIF record (for Log4OM-style listeners) or framed as a

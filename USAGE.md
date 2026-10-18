@@ -37,11 +37,13 @@ Locator is always forced to upper case.
 
 ## Transmit (TX panel)
 
-- **Quick Buttons** — eight macro buttons (CQ, reply to CQ, report, bye —
-  short/long variants) that fill in `{MY_CALLSIGN}`, `{CALLSIGN}`,
+- **Quick Buttons** — eight macro buttons in two sets of four, each
+  following the QSO flow (CQ, reply, report, bye): **F1–F4** and
+  **F5–F8**. They fill in `{MY_CALLSIGN}`, `{CALLSIGN}`,
   `{RST_SENT}`, etc. from your own data (Settings → My Data) and the
-  current QSO Data fields. Right-click a button to edit its text or see
-  the full variable list.
+  current QSO Data fields. Right-click a button to rename it or edit its
+  text (the editor also lists the variables).
+- Shortcuts: **F12** Send, **Esc** Stop, **F9** Log QSO.
 - Type or edit the text box directly, then **▶ Send**; **■ Stop** aborts
   mid-transmission.
 - **Speed (WPM)** sets sending speed; **⇄ RX speed** copies the RX panel's

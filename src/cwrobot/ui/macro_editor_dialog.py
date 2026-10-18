@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QPlainTextEdit,
@@ -22,7 +23,9 @@ from cwrobot.macros import OWN_VARIABLES, QSO_VARIABLES
 
 
 class MacroEditorDialog(QDialog):
-    def __init__(self, macro_label: str, text: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, macro_label: str, default_label: str, text: str, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Edit Quick Button — {macro_label}")
         self.resize(600, 340)
@@ -32,6 +35,11 @@ class MacroEditorDialog(QDialog):
         outer.addLayout(content, 1)
 
         left = QVBoxLayout()
+        left.addWidget(QLabel("Name:", self))
+        self.label_edit = QLineEdit(macro_label, self)
+        self.label_edit.setPlaceholderText(default_label)
+        self.label_edit.setMaxLength(40)
+        left.addWidget(self.label_edit)
         left.addWidget(QLabel("Text:", self))
         self.text_edit = QPlainTextEdit(self)
         self.text_edit.setPlainText(text)
@@ -76,3 +84,8 @@ class MacroEditorDialog(QDialog):
 
     def text(self) -> str:
         return self.text_edit.toPlainText()
+
+    def label(self) -> str:
+        """The entered name; blank means "use the default" (see
+        macros.get_macro_label)."""
+        return self.label_edit.text().strip()

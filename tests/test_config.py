@@ -55,3 +55,10 @@ def test_load_migrates_pre_v9_config_with_network_defaults(tmp_path, monkeypatch
     # Existing serial settings survive the migration untouched.
     assert config.hamlib_rig_model_id == 3073
     assert config.hamlib_port_path == "/dev/ttyUSB0"
+
+
+def test_load_migrates_pre_v12_config_with_update_check_enabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    config_path().write_text(json.dumps({"config_version": 11}), encoding="utf-8")
+
+    assert AppConfig.load().check_for_updates is True

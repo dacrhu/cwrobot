@@ -8,7 +8,7 @@ minimal menu bar and a status bar for connection/error state.
 from __future__ import annotations
 
 from PySide6.QtCore import QThread, Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
 from cwrobot import macros
@@ -68,6 +68,7 @@ class MainWindow(QMainWindow):
         self.rx_panel.selection_routed_to_field.connect(self.qso_panel.set_field_text)
         self.tx_panel.macro_bar.macro_activated.connect(self._on_macro_activated)
 
+        self._build_shortcuts()
         self._apply_config_to_widgets()
         self._build_menu()
 
@@ -103,6 +104,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(central_minimum.width(), central_minimum.height() + chrome_height)
 
         self.statusBar().showMessage("Radio: not connected | Audio: not initialized")
+        self._start_update_check()
 
         self._audio_capture: AudioCapture | None = None
         self._decoder: CwDecoder | None = None
@@ -229,6 +231,24 @@ class MainWindow(QMainWindow):
             # pipeline actually restarted onto it.
             if self.config.rx_input_device != previous_input_device:
                 self._start_audio_pipeline(self.config.rx_input_device)
+
+    def _start_update_check(self) -> None:
+        if not self.config.check_for_updates:
+            return
+        from cwrobot import __version__
+        from cwrobot.updates import UpdateChecker
+
+        self._update_checker = UpdateChecker(__version__, self)
+        self._update_checker.update_available.connect(self._on_update_available)
+        self._update_checker.start()
+
+    def _on_update_available(self, tag: str, url: str) -> None:
+        from PySide6.QtWidgets import QLabel
+
+        label = QLabel(f'Update available: {tag} — <a href="{url}">download</a>')
+        label.setOpenExternalLinks(True)
+        label.setContentsMargins(6, 0, 6, 0)
+        self.statusBar().addPermanentWidget(label)
 
     def _show_about(self) -> None:
         from PySide6.QtWidgets import QMessageBox
@@ -357,6 +377,20 @@ class MainWindow(QMainWindow):
         self._audio_capture = None
 
     # -- TX pipeline (encoder -> backend, on its own QThread) --
+
+    def _build_shortcuts(self) -> None:
+        # F1-F8 (the macros) live in MacroBar. Send/Stop/Log go through the
+        # buttons' own click() so their enabled state is honoured for free
+        # (no Send mid-send, no Stop when idle).
+        for key, button in (
+            ("F12", self.tx_panel.send_button),
+            ("Esc", self.tx_panel.stop_button),
+            ("F9", self.qso_panel.log_button),
+        ):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+            shortcut.activated.connect(button.click)
+            button.setText(f"{button.text()}  [{key}]")
 
     def _on_match_rx_speed_clicked(self) -> None:
         if self._last_rx_wpm is not None:

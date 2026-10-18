@@ -10,8 +10,10 @@ from cwrobot.macros import (
     OWN_VARIABLES,
     QSO_VARIABLES,
     build_variables,
+    get_macro_label,
     get_macro_text,
     resolve_macro_text,
+    set_macro_label,
     set_macro_text,
 )
 
@@ -126,11 +128,21 @@ def test_eight_default_macros_match_the_requested_set():
     labels = [macro.label for macro in DEFAULT_MACROS]
     assert labels == [
         "CQ short",
-        "CQ long",
         "Reply to CQ short",
-        "Reply to CQ long",
         "Report short",
-        "Report long",
         "Bye short",
+        "CQ long",
+        "Reply to CQ long",
+        "Report long",
         "Bye long",
     ]
+
+
+def test_macro_label_defaults_then_override_then_blank_falls_back():
+    config = AppConfig()
+    macro = DEFAULT_MACROS[0]
+    assert get_macro_label(config, macro) == macro.label
+    set_macro_label(config, macro.key, "  My CQ ")
+    assert get_macro_label(config, macro) == "My CQ"
+    set_macro_label(config, macro.key, "   ")
+    assert get_macro_label(config, macro) == macro.label
