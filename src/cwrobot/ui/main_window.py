@@ -243,12 +243,25 @@ class MainWindow(QMainWindow):
         self._update_checker.start()
 
     def _on_update_available(self, tag: str, url: str) -> None:
-        from PySide6.QtWidgets import QLabel
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtWidgets import QMessageBox
 
-        label = QLabel(f'Update available: {tag} — <a href="{url}">download</a>')
-        label.setOpenExternalLinks(True)
-        label.setContentsMargins(6, 0, 6, 0)
-        self.statusBar().addPermanentWidget(label)
+        from cwrobot import __version__
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Update available")
+        box.setText(f"A newer version of CW Robot is available: {tag} (you have v{__version__}).")
+        download = box.addButton("Download", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        box.finished.connect(
+            lambda _result: QDesktopServices.openUrl(QUrl(url)) if box.clickedButton() is download else None
+        )
+        # open() (not exec()) so the popup never blocks the UI -- e.g. a CW
+        # send in progress -- while it waits for an answer.
+        box.open()
 
     def _show_about(self) -> None:
         from PySide6.QtWidgets import QMessageBox

@@ -15,6 +15,7 @@ dependencies = [
     "scipy",
     "sounddevice",
     "pyserial",
+    "certifi",  # CA bundle for the update check in frozen builds
 ]
 
 [project.scripts]

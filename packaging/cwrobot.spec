@@ -41,7 +41,7 @@ hiddenimports = []
 # additionally guarantees every Qt platform plugin (including
 # "offscreen", which --smoke-test runs under in CI) and PortAudio's
 # bundled native library actually make it into the frozen build.
-for pkg in ("PySide6", "scipy", "sounddevice"):
+for pkg in ("PySide6", "scipy", "sounddevice", "certifi"):
     pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
     datas += pkg_datas
     binaries += pkg_binaries
