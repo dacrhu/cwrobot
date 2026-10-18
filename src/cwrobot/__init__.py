@@ -5,4 +5,4 @@
 # (ui.main_window._show_about), and the macOS bundle metadata
 # (packaging/cwrobot.spec's CFBundleShortVersionString). Bump only this line
 # on a release; everything else derives from it.
-__version__ = "1.0.20"
+__version__ = "1.0.21"
